@@ -49,6 +49,9 @@ const png = Buffer.concat([
   chunk("IDAT", zlib.deflateSync(pixels)),
   chunk("IEND", Buffer.alloc(0)),
 ]);
-fs.mkdirSync("assets", { recursive: true });
-fs.writeFileSync("assets/icon.png", png);
-console.log("Generated assets/icon.png");
+for (const device of ["common.r", "common.s"]) {
+  const directory = `assets/${device}`;
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(`${directory}/icon.png`, png);
+}
+console.log("Generated Zepp app icons for round and square profiles");
