@@ -1,25 +1,36 @@
 # Zepp Libre Monitor
 
-Experimental Zepp OS application for Amazfit Active 2.
+Experimental Zepp OS app for Amazfit Active 2. Current app displays **DEMO data (118 mg/dL)**; it does not fetch LibreLinkUp readings yet.
 
-## MVP status
+## Automated checks
 
-- Glucose display (mg/dL), trend arrow, color-coded range and manual refresh.
-- ZML phone-side service and watch-side request/response.
-- **Demo data only** (118 mg/dL). There is no live LibreLinkUp integration yet.
-- The project is **not yet build-tested**. A PNG app icon asset still needs to be added before packaging.
+GitHub Actions runs on pushes, pull requests and manual dispatch:
+- Installs dependencies and validates JavaScript/manifest.
+- Generates the app icon and attempts a Zeus CLI build.
+- Uploads the `.zab` package in the run's **Artifacts** if the build succeeds.
 
-## Development
+Find runs under **Actions > Zepp OS CI**. A successful package build does not guarantee real-device compatibility.
 
-Install Node.js and the Zepp OS developer tooling, then use `npm install` and `npm run dev`. The configured target is a 390 px round-screen profile; verify Active 2 model compatibility before installing.
+## Local installation and testing
 
-## Next steps
+1. Install Node.js, clone the repository, and check out `feat/zepp-glucose-app-mvp`.
+2. Run `npm install`, `node scripts/generate-icon.cjs`, then `npm run build`.
+3. For **device installation**, run `npx zeus login` (Zepp developer account required) and `npx zeus preview` to generate a device-specific QR code.
+4. On your Android phone, open Zepp > Profile > Settings > About and tap the Zepp logo seven times to enable Developer Mode.
+5. Open the **Active 2** device page > **Developer Mode** > **Scan**, and scan the preview QR shown on your computer.
+6. Launch **Libre Monitor** on your watch. Verify demo value, trend arrow, refresh button and text fit.
 
-1. Add the PNG application icon and verify a Zepp OS build on real hardware.
-2. Add secure settings for LibreLinkUp credentials and region, without storing secrets in Git.
-3. Implement and test unofficial LibreLinkUp API login and recent glucose readings.
-4. Add history, reading age and stale-data warnings, then background updates.
+The GitHub Actions `.zab` artifact is a build output, **not an Android APK** and not necessarily a directly installable QR code. The documented installation path uses `zeus preview`.
+
+If the build fails, consult the specific job log rather than assuming an artifact was produced.
+
+## Roadmap
+
+1. Verify the app compiles and launches on a real Amazfit Active 2.
+2. Implement secure settings for LibreLinkUp credentials and region; never put secrets in source code.
+3. Integrate LibreLinkUp, show reading timestamps and stale/error state.
+4. Add charts, background polling, and an optional watch face.
 
 ## Safety
 
-Experimental, not a medical device. Do not use this project for insulin dosing or to replace official CGM alerts.
+This is not a medical device. Do not dose insulin based on this app or replace official Libre alerts.
