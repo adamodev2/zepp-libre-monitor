@@ -1,0 +1,53 @@
+name: Zepp OS CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check JavaScript syntax
+        run: npm run check
+      - name: Verify project manifest
+        run: node scripts/check-manifest.cjs
+
+  build:
+    name: Build Zepp package
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Generate application icon
+        run: node scripts/generate-icon.cjs
+      - name: Build with Zeus CLI
+        run: npm run build
+        env:
+          CI: "true"
+      - name: Upload Zepp OS package
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zepp-libre-monitor-zab
+          path: dist/**/*.zab
+          if-no-files-found: error
+          retention-days: 30
