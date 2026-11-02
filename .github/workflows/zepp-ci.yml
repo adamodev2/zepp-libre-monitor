@@ -55,6 +55,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: zepp-libre-monitor-${{ steps.version.outputs.version }}-${{ steps.version.outputs.channel }}
-          path: |\n            dist/**/*.zab\n            dist/*.zab
+          path: |
+            dist/**/*.zab
+            dist/*.zab
           if-no-files-found: error
           retention-days: 30
