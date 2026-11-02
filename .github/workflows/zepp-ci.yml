@@ -39,7 +39,10 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Generate application icon
         run: node scripts/generate-icon.cjs
-      - name: Build with Zeus CLI
+      - name: Link Zeus private utility module
+        run: |
+          test -d node_modules/@zeppos/zeus-cli/private-modules/zeppos-app-utils
+          ln -s @zeppos/zeus-cli/private-modules/zeppos-app-utils node_modules/zeppos-app-utils\n      - name: Build with Zeus CLI
         run: npm run build
         env:
           CI: "true"
