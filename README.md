@@ -2,6 +2,13 @@
 
 Experimental Zepp OS app for Amazfit Active 2. Current app displays **DEMO data (118 mg/dL)**; it does not fetch LibreLinkUp readings yet.
 
+## Versioning
+
+- Builds from `main` use the official semantic version in `app.json` (for example `0.1.0`).
+- Feature branch and PR builds use the same base with a unique development suffix (for example `0.1.0-dev.42`).
+- Development builds receive a CI-specific numeric internal version code. To release a new stable version, update both `app.version.name` and `app.version.code` in `app.json` through a pull request.
+- Development numbering is generated during CI and does not modify committed project files.
+
 ## Automated checks
 
 GitHub Actions runs on pushes, pull requests and manual dispatch:
