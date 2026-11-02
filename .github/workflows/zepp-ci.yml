@@ -37,6 +37,9 @@ jobs:
           node-version: "22"
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Assign build version
+        id: version
+        run: node scripts/set-version.cjs
       - name: Generate application icon
         run: node scripts/generate-icon.cjs
       - name: Link Zeus private utility module
@@ -51,7 +54,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: zepp-libre-monitor-zab
-          path: dist/**/*.zab
+          name: zepp-libre-monitor-${{ steps.version.outputs.version }}-${{ steps.version.outputs.channel }}
+          path: |\n            dist/**/*.zab\n            dist/*.zab
           if-no-files-found: error
           retention-days: 30
