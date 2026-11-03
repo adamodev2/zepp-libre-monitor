@@ -6,7 +6,7 @@ const vectors = [
   ["", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"],
   ["abc", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"],
   ["The quick brown fox jumps over the lazy dog", "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592"],
-  ["😀", "f0443a342c5ef54783a111b51ba56efc2d845d85484f1e3fcbeb724a037b58"],
+  ["😀", "f0443a342c5ef54783a111b51ba56c938e474c32324d90c3a60c9c8e3a37e2d9"],
 ];
 for (const [input, expected] of vectors) {
   test("SHA-256 known-answer test for " + JSON.stringify(input), () => {
