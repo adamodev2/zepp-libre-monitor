@@ -73,3 +73,11 @@ If the screen remains on `Connecting to phone...` for more than 20 seconds, the 
 The CI `validate` job runs `npm test` with mocked LibreLinkUp responses: success, missing account, authentication rejection, HTTP failure, invalid JSON, network failure, no shared readings, and regional redirect. Tests require no Abbott account and do not contact Abbott. They cannot validate real account authentication or Bluetooth communication.
 
 In Zepp > Libre Monitor settings, the **Diagnostics (select and copy text)** input displays up to 30 timestamped event codes from the phone-side service. The **Clear diagnostic logs** button removes them. Log events contain no email, password, token, glucose reading, raw HTTP body or full request URL. The diagnostic UI's actual copy behavior needs a real Zepp app check. Do not share the old JS App Log if it includes secrets.
+
+## Side Service startup diagnosis
+
+If the watch shows a handshake timeout or the Zepp JS App Log shows `Cannot read properties of undefined (reading 'onInit')`, the phone's Side Service may not have initialized. This is **not evidence of an Abbott login failure**.
+
+This development build first sends a `PING` to the Side Service before fetching glucose. `Phone OK, contacting Libre...` means the Side Service responded. A timeout before that message points to the watch-phone bridge or service startup. The Side Service emits a startup marker `[LibreMonitor] SIDE_SERVICE_INITIALIZED` in Zepp developer logs. No credentials are included in these messages.
+
+If the worker fails before the startup marker appears, capture the full stack trace (excluding account secrets); the crash may occur during module evaluation or library initialization. The package build and mocked LibreLinkUp tests alone cannot verify phone Side Service execution.
