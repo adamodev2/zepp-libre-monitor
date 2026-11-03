@@ -40,12 +40,8 @@ jobs:
       - name: Assign build version
         id: version
         run: node scripts/set-version.cjs
-      - name: Generate application icon
-        run: node scripts/generate-icon.cjs
-      - name: Link Zeus private utility module
-        run: |
-          test -d node_modules/@zeppos/zeus-cli/private-modules/zeppos-app-utils
-          ln -s @zeppos/zeus-cli/private-modules/zeppos-app-utils node_modules/zeppos-app-utils
+      - name: Prepare Zepp OS build tools
+        run: npm run prepare:zepp
       - name: Build with Zeus CLI
         run: npm run build
         env:
