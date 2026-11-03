@@ -1,4 +1,5 @@
 import { sha256 } from "./sha256.js";
+import { parseFactoryTimestamp } from "./timestamps.js";
 
 const ALLOWED_REGIONS = ["", "eu", "us", "ap", "au", "ca", "de", "fr", "jp", "ru"];
 const headers = {
@@ -59,11 +60,15 @@ export async function getGlucose(email, password, report = () => {}) {
     throw new Error("No shared LibreLinkUp glucose readings found");
   }
   report("READING_RECEIVED");
-  const parsed = Date.parse(reading.FactoryTimestamp || reading.Timestamp || "");
+  const parsed = parseFactoryTimestamp(reading.FactoryTimestamp);
+  if (!parsed) report("REQUEST_FAILED", "TIMESTAMP_INVALID");
+  const ageMs = parsed ? Date.now() - parsed : null;
+  if (ageMs !== null && (ageMs < -60000 || ageMs > 900000)) report("REQUEST_FAILED", "READING_STALE");
   return {
     value: Math.round(Number(reading.Value)),
     trend: Number(reading.TrendArrow) || 0,
-    timestamp: Number.isFinite(parsed) ? parsed : 0,
+    timestamp: parsed,
+    ageMs,
     source: "LibreLinkUp",
   };
 }
