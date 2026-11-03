@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check app.js && node --check app-side/index.js && node --check page/index.js && node --check shared/glucose.js && node --check app-side/librelinkup.js && node --check setting/index.js",
+    "check": "node --check app.js && node --check app-side/index.js && node --check page/index.js && node --check shared/glucose.js && node --check app-side/librelinkup.js && node --check setting/index.js && node --check app-side/diagnostics.js",
     "build": "zeus build",
     "dev": "zeus dev",
     "prepare:zepp": "node scripts/prepare-zepp.cjs",
     "preview": "npm run prepare:zepp && zeus preview",
-    "zepp:login": "npm run prepare:zepp && zeus login"
+    "zepp:login": "npm run prepare:zepp && zeus login",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
     "@zeppos/zml": "^0.0.9",
