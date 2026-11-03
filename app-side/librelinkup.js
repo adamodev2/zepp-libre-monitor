@@ -161,6 +161,9 @@ export async function getGlucose(email, password, report = () => {}) {
     timestamp: parsed,
     ageMs,
     source: "LibreLinkUp",
-    history,
+    history: history.map((point) => ({
+      value: point.value,
+      ageMinutes: Math.max(0, Math.round((Date.now() - point.timestamp) / 60_000)),
+    })),
   };
 }
