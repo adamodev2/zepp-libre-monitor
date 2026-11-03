@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check app.js && node --check app-side/index.js && node --check page/index.js && node --check shared/glucose.js",
+    "check": "node --check app.js && node --check app-side/index.js && node --check page/index.js && node --check shared/glucose.js && node --check app-side/librelinkup.js && node --check setting/index.js",
     "build": "zeus build",
     "dev": "zeus dev"
   },
   "dependencies": {
-    "@zeppos/zml": "^0.0.9"
+    "@zeppos/zml": "^0.0.9",
+    "js-sha256": "^0.11.1"
   },
   "devDependencies": {
     "@zeppos/device-types": "^3.0.0",
