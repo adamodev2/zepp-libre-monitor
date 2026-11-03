@@ -1,4 +1,4 @@
-import { sha256 } from "js-sha256";
+import { sha256 } from "./sha256.js";
 
 const ALLOWED_REGIONS = ["", "eu", "us", "ap", "au", "ca", "de", "fr", "jp", "ru"];
 const headers = {
