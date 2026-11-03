@@ -31,6 +31,10 @@ The GitHub Actions `.zab` artifact is a build output, **not an Android APK** and
 
 If the build fails, consult the specific job log rather than assuming an artifact was produced.
 
+## Automatic refresh
+
+While Libre Monitor is open, it fetches LibreLinkUp data immediately and again every 60 seconds. Manual Refresh still works. Concurrent refreshes are skipped; after an error, the next timer tick retries automatically. The timer is stopped when the app page closes. This is **not** background synchronization or a watch face update. Readings older than 15 minutes are rejected. Real-device behavior is not yet verified.
+
 ## Roadmap
 
 1. Verify the app compiles and launches on a real Amazfit Active 2.
