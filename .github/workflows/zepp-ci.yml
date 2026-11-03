@@ -24,6 +24,8 @@ jobs:
         run: npm run check
       - name: Verify project manifest
         run: node scripts/check-manifest.cjs
+      - name: Test LibreLinkUp with mocked responses
+        run: npm test
 
   build:
     name: Build Zepp package
