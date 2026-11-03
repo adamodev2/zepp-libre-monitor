@@ -1,5 +1,6 @@
 import { BaseSideService } from "@zeppos/zml/base-side";
 import { addDiagnostic } from "./diagnostics";
+import { getGlucose } from "./librelinkup";
 
 AppSideService(BaseSideService({
   onInit() {
@@ -13,10 +14,14 @@ AppSideService(BaseSideService({
     }
     addDiagnostic("WATCH_REQUEST");
     try {
+      if (typeof getGlucose !== "function") {
+        res(null, { ok: false, message: "CLIENT IMPORT ERROR" });
+        return;
+      }
       const email = settings.settingsStorage.getItem("libre_email");
       const password = settings.settingsStorage.getItem("libre_password");
       if (!email || !password) addDiagnostic("CREDENTIALS_MISSING");
-      res(null, { ok: true, message: "PHONE SETTINGS OK", credentialsConfigured: Boolean(email && password) });
+      res(null, { ok: true, message: "LIBRE CLIENT IMPORT OK", credentialsConfigured: Boolean(email && password) });
     } catch (_) {
       res(null, { ok: false, message: "PHONE SETTINGS ERROR" });
     }

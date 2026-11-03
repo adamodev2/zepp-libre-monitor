@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check app.js && node --check app-side/index.js && node --check page/index.js && node --check shared/glucose.js && node --check app-side/librelinkup.js && node --check setting/index.js && node --check app-side/diagnostics.js",
+    "check": "node --check app.js && node --check app-side/index.js && node --check page/index.js && node --check shared/glucose.js && node --check app-side/librelinkup.js && node --check setting/index.js && node --check app-side/diagnostics.js && node --check app-side/sha256.js",
     "build": "zeus build",
     "dev": "zeus dev",
     "prepare:zepp": "node scripts/prepare-zepp.cjs",
@@ -13,8 +13,7 @@
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {
-    "@zeppos/zml": "^0.0.9",
-    "js-sha256": "^0.11.1"
+    "@zeppos/zml": "^0.0.9"
   },
   "devDependencies": {
     "@zeppos/device-types": "^3.0.0",

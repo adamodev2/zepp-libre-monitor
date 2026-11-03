@@ -5,12 +5,12 @@
     "appName": "Libre Settings Test",
     "appType": "app",
     "version": {
-      "code": 1,
-      "name": "0.1.0"
+      "code": 2,
+      "name": "0.1.1"
     },
     "icon": "icon.png",
     "vender": "community",
-    "description": "Isolated diagnostic for Zepp settings and Side Service"
+    "description": "Settings test upgraded with isolated LibreLinkUp client import"
   },
   "permissions": [
     "data:os.device.info",
