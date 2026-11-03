@@ -108,13 +108,18 @@ Page(BasePage({
     this.chart.clear({ x: 0, y: 0, w: width, h: height });
     const graph = chartSegments(this.history, this.chartMinutes, width, height);
     this.chartCaption.setProperty(hmUI.prop.TEXT, `LAST ${this.chartMinutes === 60 ? "1 HOUR" : "2 HOURS"} · ${graph.count} PTS`);
-    this.chart.setPaint({ color: 0x29465a, line_width: 1 });
-    this.chart.drawLine({ x1: 0, y1: height - 1, x2: width - 1, y2: height - 1 });
+    this.chart.setPaint({ color: 0x436078, line_width: 1 });
+    this.chart.drawLine({ x1: 0, y1: height - 1, x2: width - 1, y2: height - 1, color: 0x436078 });
+    this.chart.drawLine({ x1: 0, y1: 0, x2: 0, y2: height - 1, color: 0x436078 });
     this.chart.setPaint({ color: GREEN, line_width: 2 });
-    for (const line of graph.lines) this.chart.drawLine(line);
-    if (graph.count === 1) {
-      const dot = graph.dots[0];
+    for (const line of graph.lines) this.chart.drawLine({ ...line, color: GREEN });
+    // Abbott history may contain only one observation every 15 minutes.
+    // Always draw each actual point, including isolated samples.
+    for (const dot of graph.dots) {
       this.chart.drawCircle({ center_x: dot.x, center_y: dot.y, radius: 2, color: GREEN });
+    }
+    if (graph.count === 0) {
+      this.chart.drawText({ x: 68, y: 29, text: "NO HISTORY", text_size: 18, color: MUTED });
     }
   },
   loadReading() {
