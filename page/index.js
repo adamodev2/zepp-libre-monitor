@@ -3,14 +3,15 @@ import { getDeviceInfo, SCREEN_SHAPE_SQUARE } from "@zos/device";
 import * as timer from "@zos/timer";
 import { BasePage } from "@zeppos/zml/base-page";
 import { normalizeReading, trendArrow, glucoseBand } from "../shared/glucose";
+import { chartSegments } from "../shared/chart";
 
 const device = getDeviceInfo();
 const WIDTH = device.width || 466;
 const HEIGHT = device.height || 466;
 const isSquare = device.screenShape === SCREEN_SHAPE_SQUARE;
 const layout = isSquare
-  ? { heading: 42, value: 105, units: 201, trend: 252, status: 320, button: HEIGHT - 65 }
-  : { heading: 54, value: 125, units: 225, trend: 270, status: 335, button: HEIGHT - 81 };
+  ? { heading: 22, value: 72, units: 168, trend: 197, chart: 260, status: 365, button: HEIGHT - 58 }
+  : { heading: 35, value: 78, units: 174, trend: 210, chart: 268, status: 374, button: HEIGHT - 61 };
 const WHITE = 0xffffff;
 const MUTED = 0xa4b0bb;
 const GREEN = 0x41d98a;
@@ -37,20 +38,37 @@ Page(BasePage({
     this.requestSequence = 0;
     this.requestInFlight = false;
     this.destroyed = false;
+    this.chartMinutes = 120;
+    this.history = [];
   },
   build() {
     this.heading = label(layout.heading, 32, 25, MUTED, "LIBRE MONITOR");
     this.value = label(layout.value, 100, 84, WHITE, "--");
     this.units = label(layout.units, 34, 23, MUTED, "mg/dL");
     this.trend = label(layout.trend, 45, 36, WHITE, "·");
-    this.status = label(layout.status, 28, 18, MUTED, "Connecting to LibreLinkUp...");
+    this.chart = hmUI.createWidget(hmUI.widget.CANVAS, {
+      x: Math.round((WIDTH - 260) / 2), y: layout.chart, w: 260, h: 92,
+    });
+    this.chartCaption = label(layout.chart - 25, 23, 17, MUTED, "LAST 2 HOURS");
+    this.status = label(layout.status, 27, 16, MUTED, "Connecting to LibreLinkUp...");
     this.refresh = hmUI.createWidget(hmUI.widget.BUTTON, {
-      x: Math.round((WIDTH - 170) / 2), y: layout.button, w: 170, h: 48,
-      text: "Refresh", text_size: 20,
+      x: Math.round(WIDTH / 2) + 4, y: layout.button, w: 108, h: 41,
+      text: "Refresh", text_size: 17,
       color: WHITE, normal_color: 0x263442,
       press_color: 0x405163, radius: 20,
       click_func: () => this.loadReading(),
     });
+    this.toggleChart = hmUI.createWidget(hmUI.widget.BUTTON, {
+      x: Math.round(WIDTH / 2) - 112, y: layout.button, w: 108, h: 41,
+      text: "1h / 2h", text_size: 16,
+      color: WHITE, normal_color: 0x263442,
+      press_color: 0x405163, radius: 18,
+      click_func: () => {
+        this.chartMinutes = this.chartMinutes === 120 ? 60 : 120;
+        this.drawChart();
+      },
+    });
+    this.drawChart();
     this.loadReading();
     this.refreshTimer = timer.createTimer(
       REFRESH_INTERVAL_MS,
@@ -84,6 +102,21 @@ Page(BasePage({
     this.trend.setProperty(hmUI.prop.TEXT, "·");
     this.status.setProperty(hmUI.prop.TEXT, String(message).slice(0, 58));
   },
+  drawChart() {
+    if (!this.chart) return;
+    const width = 260, height = 92;
+    this.chart.clear({ x: 0, y: 0, w: width, h: height });
+    const graph = chartSegments(this.history, this.chartMinutes, width, height);
+    this.chartCaption.setProperty(hmUI.prop.TEXT, `LAST ${this.chartMinutes === 60 ? "1 HOUR" : "2 HOURS"} · ${graph.count} PTS`);
+    this.chart.setPaint({ color: 0x29465a, line_width: 1 });
+    this.chart.drawLine({ x1: 0, y1: height - 1, x2: width - 1, y2: height - 1 });
+    this.chart.setPaint({ color: GREEN, line_width: 2 });
+    for (const line of graph.lines) this.chart.drawLine(line);
+    if (graph.count === 1) {
+      const dot = graph.dots[0];
+      this.chart.drawCircle({ center_x: dot.x, center_y: dot.y, radius: 2, color: GREEN });
+    }
+  },
   loadReading() {
     if (this.requestInFlight || this.destroyed) return;
     this.requestInFlight = true;
@@ -115,6 +148,8 @@ Page(BasePage({
         if (response.reading?.ageMs === null || !Number.isFinite(ageMs)) throw new Error("Reading has invalid UTC timestamp");
         const ageMinutes = Math.floor(ageMs / 60_000);
         if (ageMs < -60_000 || ageMs > MAX_READING_AGE_MS) throw new Error("Reading unavailable or older than 15 min");
+        this.history = Array.isArray(response.reading.history) ? response.reading.history : [];
+        this.drawChart();
         const band = glucoseBand(reading.value);
         const color = band === "low" ? RED : band === "high" ? AMBER : GREEN;
         this.value.setProperty(hmUI.prop.TEXT, String(reading.value));
