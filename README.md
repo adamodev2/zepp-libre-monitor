@@ -42,6 +42,13 @@ After installation, configure a dedicated LibreLinkUp follower account in Libre 
 
 If the preview fails, capture the **first error line** and the command where it occurred (`npm install`, `npm run zepp:login`, or `npm run preview`), while removing credentials and tokens.
 
+## Display targets
+
+- Default/first target: **Amazfit Active 2 (Round), 466 × 466**.
+- Optional target: **Amazfit Active 2 (Square), 390 × 450** (`st: s`, `dw: 390`).
+- The app detects the connected screen shape and dimensions and adjusts its glucose view.
+- When running `npm run preview`, select the **round Active 2** profile for the round watch. The order in the manifest does not override a manual Zeus device selection.
+
 ## Automatic refresh
 
 While Libre Monitor is open, it fetches LibreLinkUp data immediately and again every 60 seconds. Manual Refresh still works. Concurrent refreshes are skipped; after an error, the next timer tick retries automatically. The timer is stopped when the app page closes. This is **not** background synchronization or a watch face update. Readings older than 15 minutes are rejected. Real-device behavior is not yet verified.
