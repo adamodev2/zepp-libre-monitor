@@ -3,7 +3,7 @@ import * as timer from "@zos/timer";
 import { BasePage } from "@zeppos/zml/base-page";
 import { normalizeReading, trendArrow, glucoseBand } from "../shared/glucose";
 
-const WIDTH = 390;
+const WIDTH = 466;
 const WHITE = 0xffffff;
 const MUTED = 0xa4b0bb;
 const GREEN = 0x41d98a;
@@ -29,13 +29,13 @@ Page(BasePage({
     this.destroyed = false;
   },
   build() {
-    this.heading = label(36, 32, 25, MUTED, "LIBRE MONITOR");
-    this.value = label(105, 100, 84, WHITE, "--");
-    this.units = label(205, 34, 23, MUTED, "mg/dL");
-    this.trend = label(245, 45, 36, WHITE, "·");
-    this.status = label(297, 28, 18, MUTED, "Connecting to LibreLinkUp...");
+    this.heading = label(54, 32, 25, MUTED, "LIBRE MONITOR");
+    this.value = label(125, 100, 84, WHITE, "--");
+    this.units = label(225, 34, 23, MUTED, "mg/dL");
+    this.trend = label(270, 45, 36, WHITE, "·");
+    this.status = label(335, 28, 18, MUTED, "Connecting to LibreLinkUp...");
     this.refresh = hmUI.createWidget(hmUI.widget.BUTTON, {
-      x: 110, y: 330, w: 170, h: 48,
+      x: 148, y: 385, w: 170, h: 48,
       text: "Refresh", text_size: 20,
       color: WHITE, normal_color: 0x263442,
       press_color: 0x405163, radius: 20,
