@@ -67,3 +67,9 @@ This is not a medical device. Do not dose insulin based on this app or replace o
 ## Troubleshooting indefinite loading
 
 If the screen remains on `Connecting to phone...` for more than 20 seconds, the app should now show `Timeout: check Zepp phone connection` instead of blocking forever. Confirm the watch is connected to the phone, Zepp is running, and companion account settings are saved. Other failures show an abbreviated error on the watch. A green GitHub build does **not** prove LibreLinkUp login succeeds on the phone; the unofficial API still requires testing.
+
+## Automated mock integration tests and diagnostics
+
+The CI `validate` job runs `npm test` with mocked LibreLinkUp responses: success, missing account, authentication rejection, HTTP failure, invalid JSON, network failure, no shared readings, and regional redirect. Tests require no Abbott account and do not contact Abbott. They cannot validate real account authentication or Bluetooth communication.
+
+In Zepp > Libre Monitor settings, the **Diagnostics (select and copy text)** input displays up to 30 timestamped event codes from the phone-side service. The **Clear diagnostic logs** button removes them. Log events contain no email, password, token, glucose reading, raw HTTP body or full request URL. The diagnostic UI's actual copy behavior needs a real Zepp app check. Do not share the old JS App Log if it includes secrets.
