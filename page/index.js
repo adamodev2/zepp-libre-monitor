@@ -25,7 +25,7 @@ Page(BasePage({
     this.value = label(105, 100, 84, WHITE, "--");
     this.units = label(205, 34, 23, MUTED, "mg/dL");
     this.trend = label(245, 45, 36, WHITE, "·");
-    this.status = label(297, 28, 18, MUTED, "Loading demo data...");
+    this.status = label(297, 28, 18, MUTED, "Connecting to LibreLinkUp...");
     this.refresh = hmUI.createWidget(hmUI.widget.BUTTON, {
       x: 110, y: 330, w: 170, h: 48,
       text: "Refresh", text_size: 20,
@@ -39,14 +39,21 @@ Page(BasePage({
     this.status.setProperty(hmUI.prop.TEXT, "Loading...");
     this.request({ method: "GET_GLUCOSE" })
       .then((response) => {
+        if (response.error) throw new Error(response.error);
         const reading = normalizeReading(response.reading);
+        const ageMinutes = reading.timestamp ? Math.floor((Date.now() - reading.timestamp) / 60000) : Infinity;
+        if (ageMinutes < 0 || ageMinutes > 15) throw new Error("Reading unavailable or older than 15 min");
         const band = glucoseBand(reading.value);
         const color = band === "low" ? RED : band === "high" ? AMBER : GREEN;
         this.value.setProperty(hmUI.prop.TEXT, String(reading.value));
         this.value.setProperty(hmUI.prop.COLOR, color);
         this.trend.setProperty(hmUI.prop.TEXT, trendArrow(reading.trend));
-        this.status.setProperty(hmUI.prop.TEXT, response.demo ? "DEMO - NOT LIVE" : "Live reading");
+        this.status.setProperty(hmUI.prop.TEXT, `LibreLinkUp · ${ageMinutes} min ago`);
       })
-      .catch(() => this.status.setProperty(hmUI.prop.TEXT, "Unable to load reading"));
+      .catch((error) => {
+        this.value.setProperty(hmUI.prop.TEXT, "--");
+        this.trend.setProperty(hmUI.prop.TEXT, "·");
+        this.status.setProperty(hmUI.prop.TEXT, String(error.message || "No LibreLinkUp data").slice(0, 55));
+      });
   },
 }));
