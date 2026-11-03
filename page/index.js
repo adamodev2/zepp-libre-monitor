@@ -18,6 +18,7 @@ const RED = 0xff5d68;
 const AMBER = 0xffc247;
 const REFRESH_INTERVAL_MS = 60_000;
 const MAX_READING_AGE_MS = 15 * 60_000;
+const REQUEST_TIMEOUT_MS = 20_000;
 
 function label(y, height, size, color, text) {
   return hmUI.createWidget(hmUI.widget.TEXT, {
@@ -32,6 +33,8 @@ function label(y, height, size, color, text) {
 Page(BasePage({
   onInit() {
     this.refreshTimer = null;
+    this.watchdogTimer = null;
+    this.requestSequence = 0;
     this.requestInFlight = false;
     this.destroyed = false;
   },
@@ -62,14 +65,41 @@ Page(BasePage({
       timer.stopTimer(this.refreshTimer);
       this.refreshTimer = null;
     }
+    this.stopWatchdog();
+    this.requestSequence += 1;
+  },
+  stopWatchdog() {
+    if (this.watchdogTimer !== null) {
+      timer.stopTimer(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
+  },
+  finishRequest(sequence) {
+    if (sequence !== this.requestSequence) return;
+    this.stopWatchdog();
+    this.requestInFlight = false;
+  },
+  showError(message) {
+    this.value.setProperty(hmUI.prop.TEXT, "--");
+    this.trend.setProperty(hmUI.prop.TEXT, "·");
+    this.status.setProperty(hmUI.prop.TEXT, String(message).slice(0, 58));
   },
   loadReading() {
     if (this.requestInFlight || this.destroyed) return;
     this.requestInFlight = true;
-    this.status.setProperty(hmUI.prop.TEXT, "Loading...");
+    const sequence = ++this.requestSequence;
+    this.status.setProperty(hmUI.prop.TEXT, "Connecting to phone...");
+    this.stopWatchdog();
+    this.watchdogTimer = timer.createTimer(REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_MS, () => {
+      if (this.destroyed || this.requestSequence !== sequence) return;
+      this.finishRequest(sequence);
+      this.requestSequence += 1;
+      this.showError("Timeout: check Zepp phone connection");
+    }, {});
     this.request({ method: "GET_GLUCOSE" })
       .then((response) => {
-        if (this.destroyed) return;
+        if (this.destroyed || sequence !== this.requestSequence) return;
+        if (!response) throw new Error("Empty response from phone");
         if (response.error) throw new Error(response.error);
         const reading = normalizeReading(response.reading);
         const ageMs = reading.timestamp ? Date.now() - reading.timestamp : Infinity;
@@ -83,13 +113,11 @@ Page(BasePage({
         this.status.setProperty(hmUI.prop.TEXT, `LibreLinkUp · ${ageMinutes} min ago`);
       })
       .catch((error) => {
-        if (this.destroyed) return;
-        this.value.setProperty(hmUI.prop.TEXT, "--");
-        this.trend.setProperty(hmUI.prop.TEXT, "·");
-        this.status.setProperty(hmUI.prop.TEXT, String(error.message || "No LibreLinkUp data").slice(0, 55));
+        if (this.destroyed || sequence !== this.requestSequence) return;
+        this.showError(error.message || "No LibreLinkUp data");
       })
       .finally(() => {
-        this.requestInFlight = false;
+        this.finishRequest(sequence);
       });
   },
 }));
