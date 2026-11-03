@@ -1,8 +1,8 @@
 {
   "configVersion": "v3",
   "app": {
-    "appId": 1092841,
-    "appName": "Libre Monitor",
+    "appId": 1092842,
+    "appName": "Libre Phone Test",
     "appType": "app",
     "version": {
       "code": 1,
@@ -10,7 +10,7 @@
     },
     "icon": "icon.png",
     "vender": "community",
-    "description": "Glucose monitor for Amazfit Active 2 (experimental)"
+    "description": "Standalone Zepp ZML phone service handshake diagnostic"
   },
   "permissions": [
     "data:os.device.info",
@@ -52,7 +52,7 @@
   },
   "i18n": {
     "en-US": {
-      "appName": "Libre Monitor"
+      "appName": "Libre Phone Test"
     }
   },
   "defaultLanguage": "en-US"
