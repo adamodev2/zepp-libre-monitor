@@ -1,24 +1,22 @@
 import { BaseSideService } from "@zeppos/zml/base-side";
-
-// Demo-only data source. Live LibreLinkUp authentication is intentionally not
-// enabled until a private credential flow and API verification are implemented.
-function demoReading() {
-  return {
-    value: 118,
-    trend: 3,
-    timestamp: Date.now(),
-    source: "demo",
-  };
-}
+import { getGlucose } from "./librelinkup";
 
 AppSideService(BaseSideService({
   onInit() {},
-  onRequest(req, res) {
-    if (req.method === "GET_GLUCOSE") {
-      res(null, { reading: demoReading(), demo: true });
+  async onRequest(req, res) {
+    if (req.method !== "GET_GLUCOSE") {
+      res(null, { error: "Unsupported request" });
       return;
     }
-    res(null, { error: "Unsupported request" });
+    try {
+      const email = settings.settingsStorage.getItem("libre_email");
+      const password = settings.settingsStorage.getItem("libre_password");
+      const reading = await getGlucose(email, password);
+      res(null, { reading });
+    } catch (error) {
+      // Never log usernames, passwords, bearer tokens, or response bodies.
+      res(null, { error: String(error.message || "LibreLinkUp request failed") });
+    }
   },
   onRun() {},
   onDestroy() {},
