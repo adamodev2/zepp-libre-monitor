@@ -5,7 +5,10 @@ if (app.app.appType !== "app") throw new Error("Expected Zepp OS app");
 if (!app.targets?.common?.module?.["app-side"]?.path) throw new Error("Side service is missing");
 if (!app.targets?.common?.module?.page?.pages?.length) throw new Error("Device page is missing");
 const targets = app.targets?.common?.platforms || [];
-if (!targets.some((target) => target.st === "r" && target.dw === 466)) {
-  throw new Error("Amazfit Active 2 requires a round 466px target");
+if (targets[0]?.st !== "r" || targets[0]?.dw !== 466) {
+  throw new Error("Round 466px Active 2 must be the first/default target");
 }
-console.log("Manifest and Active 2 round-device target verified");
+if (!targets.some((target) => target.st === "s" && target.dw === 390)) {
+  throw new Error("Missing square 390px Active 2 target");
+}
+console.log("Manifest supports round (default) and square Active 2 targets");
