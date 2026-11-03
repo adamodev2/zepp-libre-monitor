@@ -1,9 +1,16 @@
 import * as hmUI from "@zos/ui";
+import { getDeviceInfo, SCREEN_SHAPE_SQUARE } from "@zos/device";
 import * as timer from "@zos/timer";
 import { BasePage } from "@zeppos/zml/base-page";
 import { normalizeReading, trendArrow, glucoseBand } from "../shared/glucose";
 
-const WIDTH = 466;
+const device = getDeviceInfo();
+const WIDTH = device.width || 466;
+const HEIGHT = device.height || 466;
+const isSquare = device.screenShape === SCREEN_SHAPE_SQUARE;
+const layout = isSquare
+  ? { heading: 42, value: 105, units: 201, trend: 252, status: 320, button: HEIGHT - 65 }
+  : { heading: 54, value: 125, units: 225, trend: 270, status: 335, button: HEIGHT - 81 };
 const WHITE = 0xffffff;
 const MUTED = 0xa4b0bb;
 const GREEN = 0x41d98a;
@@ -29,13 +36,13 @@ Page(BasePage({
     this.destroyed = false;
   },
   build() {
-    this.heading = label(54, 32, 25, MUTED, "LIBRE MONITOR");
-    this.value = label(125, 100, 84, WHITE, "--");
-    this.units = label(225, 34, 23, MUTED, "mg/dL");
-    this.trend = label(270, 45, 36, WHITE, "·");
-    this.status = label(335, 28, 18, MUTED, "Connecting to LibreLinkUp...");
+    this.heading = label(layout.heading, 32, 25, MUTED, "LIBRE MONITOR");
+    this.value = label(layout.value, 100, 84, WHITE, "--");
+    this.units = label(layout.units, 34, 23, MUTED, "mg/dL");
+    this.trend = label(layout.trend, 45, 36, WHITE, "·");
+    this.status = label(layout.status, 28, 18, MUTED, "Connecting to LibreLinkUp...");
     this.refresh = hmUI.createWidget(hmUI.widget.BUTTON, {
-      x: 148, y: 385, w: 170, h: 48,
+      x: Math.round((WIDTH - 170) / 2), y: layout.button, w: 170, h: 48,
       text: "Refresh", text_size: 20,
       color: WHITE, normal_color: 0x263442,
       press_color: 0x405163, radius: 20,
