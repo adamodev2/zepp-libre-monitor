@@ -14,9 +14,14 @@ function publicError(error) {
 
 AppSideService(BaseSideService({
   onInit() {
+    console.log("[LibreMonitor] SIDE_SERVICE_INITIALIZED");
     addDiagnostic("SIDE_STARTED");
   },
   async onRequest(req, res) {
+    if (req.method === "PING") {
+      res(null, { ok: true, service: "libre-monitor" });
+      return;
+    }
     if (req.method !== "GET_GLUCOSE") {
       res(null, { error: "Unsupported request" });
       return;
