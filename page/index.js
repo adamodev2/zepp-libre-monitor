@@ -110,7 +110,9 @@ Page(BasePage({
         if (!response) throw new Error("Empty response from phone");
         if (response.error) throw new Error(response.error);
         const reading = normalizeReading(response.reading);
-        const ageMs = reading.timestamp ? Date.now() - reading.timestamp : Infinity;
+        // Use the phone clock because watch time may not match Abbott UTC timestamps.
+        const ageMs = Number(response.reading?.ageMs);
+        if (response.reading?.ageMs === null || !Number.isFinite(ageMs)) throw new Error("Reading has invalid UTC timestamp");
         const ageMinutes = Math.floor(ageMs / 60_000);
         if (ageMs < -60_000 || ageMs > MAX_READING_AGE_MS) throw new Error("Reading unavailable or older than 15 min");
         const band = glucoseBand(reading.value);
