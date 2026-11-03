@@ -1,4 +1,5 @@
 import * as hmUI from "@zos/ui";
+import * as timer from "@zos/timer";
 import { BasePage } from "@zeppos/zml/base-page";
 import { normalizeReading, trendArrow, glucoseBand } from "../shared/glucose";
 
@@ -8,6 +9,8 @@ const MUTED = 0xa4b0bb;
 const GREEN = 0x41d98a;
 const RED = 0xff5d68;
 const AMBER = 0xffc247;
+const REFRESH_INTERVAL_MS = 60_000;
+const MAX_READING_AGE_MS = 15 * 60_000;
 
 function label(y, height, size, color, text) {
   return hmUI.createWidget(hmUI.widget.TEXT, {
@@ -20,6 +23,11 @@ function label(y, height, size, color, text) {
 }
 
 Page(BasePage({
+  onInit() {
+    this.refreshTimer = null;
+    this.requestInFlight = false;
+    this.destroyed = false;
+  },
   build() {
     this.heading = label(36, 32, 25, MUTED, "LIBRE MONITOR");
     this.value = label(105, 100, 84, WHITE, "--");
@@ -34,15 +42,32 @@ Page(BasePage({
       click_func: () => this.loadReading(),
     });
     this.loadReading();
+    this.refreshTimer = timer.createTimer(
+      REFRESH_INTERVAL_MS,
+      REFRESH_INTERVAL_MS,
+      () => this.loadReading(),
+      {}
+    );
+  },
+  onDestroy() {
+    this.destroyed = true;
+    if (this.refreshTimer !== null) {
+      timer.stopTimer(this.refreshTimer);
+      this.refreshTimer = null;
+    }
   },
   loadReading() {
+    if (this.requestInFlight || this.destroyed) return;
+    this.requestInFlight = true;
     this.status.setProperty(hmUI.prop.TEXT, "Loading...");
     this.request({ method: "GET_GLUCOSE" })
       .then((response) => {
+        if (this.destroyed) return;
         if (response.error) throw new Error(response.error);
         const reading = normalizeReading(response.reading);
-        const ageMinutes = reading.timestamp ? Math.floor((Date.now() - reading.timestamp) / 60000) : Infinity;
-        if (ageMinutes < 0 || ageMinutes > 15) throw new Error("Reading unavailable or older than 15 min");
+        const ageMs = reading.timestamp ? Date.now() - reading.timestamp : Infinity;
+        const ageMinutes = Math.floor(ageMs / 60_000);
+        if (ageMs < -60_000 || ageMs > MAX_READING_AGE_MS) throw new Error("Reading unavailable or older than 15 min");
         const band = glucoseBand(reading.value);
         const color = band === "low" ? RED : band === "high" ? AMBER : GREEN;
         this.value.setProperty(hmUI.prop.TEXT, String(reading.value));
@@ -51,9 +76,13 @@ Page(BasePage({
         this.status.setProperty(hmUI.prop.TEXT, `LibreLinkUp · ${ageMinutes} min ago`);
       })
       .catch((error) => {
+        if (this.destroyed) return;
         this.value.setProperty(hmUI.prop.TEXT, "--");
         this.trend.setProperty(hmUI.prop.TEXT, "·");
         this.status.setProperty(hmUI.prop.TEXT, String(error.message || "No LibreLinkUp data").slice(0, 55));
+      })
+      .finally(() => {
+        this.requestInFlight = false;
       });
   },
 }));
