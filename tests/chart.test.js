@@ -22,6 +22,7 @@ test("chart never bridges gaps greater than five minutes", () => {
     { ageMinutes: 10, value: 125 },
   ], 60, 241, 91);
   assert.equal(graph.lines.length, 0);
+  assert.equal(graph.dots.length, 2);
 });
 
 test("one-hour mode excludes older samples", () => {
@@ -42,4 +43,19 @@ test("Abbott graph points are deduplicated by minute and filtered to two hours",
     { FactoryTimestamp: "no date", ValueInMgPerDl: 130 },
   ], now);
   assert.deepEqual(graph.map((p) => p.value), [116, 120]);
+});
+
+test("15-minute Abbott graph intervals retain visible individual points", () => {
+  const graph = chartSegments([
+    { ageMinutes: 60, value: 105 },
+    { ageMinutes: 45, value: 110 },
+    { ageMinutes: 30, value: 115 },
+    { ageMinutes: 15, value: 125 },
+    { ageMinutes: 0, value: 120 },
+  ], 60, 260, 92);
+  assert.equal(graph.count, 5);
+  assert.equal(graph.dots.length, 5);
+  assert.equal(graph.lines.length, 0);
+  assert.equal(graph.dots[0].x, 0);
+  assert.equal(graph.dots[4].x, 259);
 });
