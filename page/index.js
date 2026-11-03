@@ -31,7 +31,7 @@ Page(BasePage({
       .then((result) => {
         this.status.setProperty(
           hmUI.prop.TEXT,
-          result?.ok === true ? "PHONE SERVICE OK" : "INVALID PHONE RESPONSE"
+          result?.ok === true ? (result.credentialsConfigured ? "PHONE SETTINGS OK - ACCOUNT SET" : "PHONE SETTINGS OK - NO ACCOUNT") : (result?.message || "INVALID PHONE RESPONSE")
         );
       })
       .catch(() => {
