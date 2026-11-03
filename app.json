@@ -1,16 +1,16 @@
 {
   "configVersion": "v3",
   "app": {
-    "appId": 1092844,
-    "appName": "Libre Import Test",
+    "appId": 1092843,
+    "appName": "Libre Settings Test",
     "appType": "app",
     "version": {
-      "code": 1,
-      "name": "0.1.0"
+      "code": 2,
+      "name": "0.1.1"
     },
     "icon": "icon.png",
     "vender": "community",
-    "description": "Isolated diagnostic for LibreLinkUp client import"
+    "description": "Settings test upgraded with isolated LibreLinkUp client import"
   },
   "permissions": [
     "data:os.device.info",
@@ -52,7 +52,7 @@
   },
   "i18n": {
     "en-US": {
-      "appName": "Libre Import Test"
+      "appName": "Libre Settings Test"
     }
   },
   "defaultLanguage": "en-US"
