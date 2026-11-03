@@ -1,6 +1,6 @@
 # Zepp Libre Monitor
 
-Experimental Zepp OS app for Amazfit Active 2. This branch contains an **unverified live LibreLinkUp integration**; it has not yet been tested with a real follower account. No demo readings are used.
+Experimental Zepp OS app for Amazfit Active 2. Live LibreLinkUp glucose and trend display have been confirmed on an Active 2; new chart and session-caching features still require physical-device verification. No demo readings are used.
 
 ## Versioning
 
@@ -81,3 +81,16 @@ If the watch shows a handshake timeout or the Zepp JS App Log shows `Cannot read
 This development build first sends a `PING` to the Side Service before fetching glucose. `Phone OK, contacting Libre...` means the Side Service responded. A timeout before that message points to the watch-phone bridge or service startup. The Side Service emits a startup marker `[LibreMonitor] SIDE_SERVICE_INITIALIZED` in Zepp developer logs. No credentials are included in these messages.
 
 If the worker fails before the startup marker appears, capture the full stack trace (excluding account secrets); the crash may occur during module evaluation or library initialization. The package build and mocked LibreLinkUp tests alone cannot verify phone Side Service execution.
+
+## Mini chart and session reuse
+
+- The watch shows a 2-hour glucose trace, switchable to 1 hour with the **1h / 2h** button.
+- Actual points come from the unofficial LibreLinkUp `/llu/connections/{patientId}/graph` endpoint. Samples are positioned by minute, gaps of more than five minutes are not connected. If graph history is unavailable, current glucose remains visible.
+- Graph history is requested at most once per five minutes while the Side Service is running. Live current glucose is requested every minute while the page is open.
+- LibreLinkUp bearer tokens and account hash remain in memory only and are reused for up to 45 minutes, with a single reauthentication attempt after an HTTP 401. Closing/restarting the Zepp Side Service may require signing in again.
+- `GRAPH_HTTP`, `GRAPH_POINTS`, `GRAPH_UNAVAILABLE` and `SESSION_REUSED` diagnostics contain no account IDs, tokens, passwords, glucose values or graph contents.
+- The history feature is still experimental and not validated against real Abbott graph responses on the Active 2. Do not interpret gaps as normal glucose values.
+
+## Watch face integration
+
+The glucose display inside **Libre Monitor** is now implemented. A separate live **watch face** is not included in this PR. Zepp OS watch faces do not share the Mini Program Side Service network interface directly; a separate watch-face/background data bridge and installation flow are needed. See https://github.com/orgs/zepp-health/discussions/330.
