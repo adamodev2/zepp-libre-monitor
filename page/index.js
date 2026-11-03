@@ -94,9 +94,17 @@ Page(BasePage({
       if (this.destroyed || this.requestSequence !== sequence) return;
       this.finishRequest(sequence);
       this.requestSequence += 1;
-      this.showError("Timeout: check Zepp phone connection");
+      this.showError("Timeout: no reply from Zepp phone service");
     }, {});
-    this.request({ method: "GET_GLUCOSE" })
+    this.request({ method: "PING" })
+      .then((ping) => {
+        if (!ping || ping.ok !== true) {
+          throw new Error("Phone service PING failed");
+        }
+        if (this.destroyed || sequence !== this.requestSequence) return null;
+        this.status.setProperty(hmUI.prop.TEXT, "Phone OK, contacting Libre...");
+        return this.request({ method: "GET_GLUCOSE" });
+      })
       .then((response) => {
         if (this.destroyed || sequence !== this.requestSequence) return;
         if (!response) throw new Error("Empty response from phone");
