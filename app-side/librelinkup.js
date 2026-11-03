@@ -15,10 +15,14 @@ const headers = {
 // Ephemeral in-memory state only. Never persist auth tokens in Zepp Settings Storage.
 let session = null;
 let historyCache = { patientId: "", at: 0, points: [] };
+let liveSamples = [];
+let activePatientId = "";
 
 export function resetSession() {
   session = null;
   historyCache = { patientId: "", at: 0, points: [] };
+  liveSamples = [];
+  activePatientId = "";
 }
 
 function apiHost(region) {
@@ -98,6 +102,26 @@ export function parseHistory(graphData, now = Date.now()) {
   return Object.keys(dedup).map((key) => dedup[key]).sort((a, b) => a.timestamp - b.timestamp).slice(-121);
 }
 
+function combineHistory(graphPoints, current, patientId, now) {
+  if (patientId !== activePatientId) {
+    liveSamples = [];
+    activePatientId = patientId;
+  }
+  if (current?.timestamp && Number.isFinite(current.value)) {
+    liveSamples.push({ timestamp: current.timestamp, value: current.value });
+  }
+  const dedup = {};
+  for (const point of [...graphPoints, ...liveSamples]) {
+    if (point.timestamp >= now - HISTORY_WINDOW_MS && point.timestamp <= now + 60_000) {
+      dedup[Math.floor(point.timestamp / 60_000)] = point;
+    }
+  }
+  const result = Object.keys(dedup).map((key) => dedup[key])
+    .sort((a, b) => a.timestamp - b.timestamp).slice(-121);
+  liveSamples = liveSamples.filter((point) => point.timestamp >= now - HISTORY_WINDOW_MS);
+  return result;
+}
+
 async function loadHistory(auth, patientId, report) {
   if (!/^[a-z0-9-]{1,80}$/i.test(patientId)) return [];
   if (historyCache.patientId === patientId && Date.now() - historyCache.at < HISTORY_REFRESH_MS) {
@@ -154,7 +178,8 @@ export async function getGlucose(email, password, report = () => {}) {
   if (ageMs !== null && (ageMs < -60_000 || ageMs > 900_000)) report("REQUEST_FAILED", "READING_STALE");
 
   const patientId = typeof connection.patientId === "string" ? connection.patientId : "";
-  const history = await loadHistory(session, patientId, report);
+  const graphHistory = await loadHistory(session, patientId, report);
+  const history = combineHistory(graphHistory, { timestamp: parsed, value: Math.round(Number(reading.ValueInMgPerDl ?? reading.Value)) }, patientId, Date.now());
   return {
     value: Math.round(Number(reading.ValueInMgPerDl ?? reading.Value)),
     trend: Number(reading.TrendArrow) || 0,
