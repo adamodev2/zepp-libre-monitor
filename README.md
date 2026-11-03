@@ -51,7 +51,7 @@ If the preview fails, capture the **first error line** and the command where it 
 
 ## Automatic refresh
 
-While Libre Monitor is open, it fetches LibreLinkUp data immediately and again every 60 seconds. Manual Refresh still works. Concurrent refreshes are skipped; after an error, the next timer tick retries automatically. The timer is stopped when the app page closes. This is **not** background synchronization or a watch face update. Readings older than 15 minutes are rejected. Real-device behavior is not yet verified.
+While Libre Monitor is open, it fetches LibreLinkUp data immediately and again every 60 seconds. A 20-second watch-side timeout clears a stalled request and permits the next manual or scheduled retry; late results from timed-out requests are ignored. Manual Refresh still works. Concurrent refreshes are skipped; after an error, the next timer tick retries automatically. The timer is stopped when the app page closes. This is **not** background synchronization or a watch face update. Readings older than 15 minutes are rejected. Real-device behavior is not yet verified.
 
 ## Roadmap
 
@@ -63,3 +63,7 @@ While Libre Monitor is open, it fetches LibreLinkUp data immediately and again e
 ## Safety
 
 This is not a medical device. Do not dose insulin based on this app or replace official Libre alerts.
+
+## Troubleshooting indefinite loading
+
+If the screen remains on `Connecting to phone...` for more than 20 seconds, the app should now show `Timeout: check Zepp phone connection` instead of blocking forever. Confirm the watch is connected to the phone, Zepp is running, and companion account settings are saved. Other failures show an abbreviated error on the watch. A green GitHub build does **not** prove LibreLinkUp login succeeds on the phone; the unofficial API still requires testing.
