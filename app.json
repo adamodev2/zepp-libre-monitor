@@ -1,8 +1,8 @@
 {
   "configVersion": "v3",
   "app": {
-    "appId": 1092843,
-    "appName": "Libre Settings Test",
+    "appId": 1092844,
+    "appName": "Libre Import Test",
     "appType": "app",
     "version": {
       "code": 1,
@@ -10,7 +10,7 @@
     },
     "icon": "icon.png",
     "vender": "community",
-    "description": "Isolated diagnostic for Zepp settings and Side Service"
+    "description": "Isolated diagnostic for LibreLinkUp client import"
   },
   "permissions": [
     "data:os.device.info",
@@ -52,7 +52,7 @@
   },
   "i18n": {
     "en-US": {
-      "appName": "Libre Settings Test"
+      "appName": "Libre Import Test"
     }
   },
   "defaultLanguage": "en-US"
