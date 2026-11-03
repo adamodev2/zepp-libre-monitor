@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getGlucose } from "../app-side/librelinkup.js";
+import { getGlucose, resetSession } from "../app-side/librelinkup.js";
 
 const originalFetch = globalThis.fetch;
 function mockFetch(responses) {
@@ -22,7 +22,7 @@ const reading = {
   data: [{ glucoseMeasurement: { Value: 124, TrendArrow: 3, FactoryTimestamp: "2026-11-03T12:00:00Z" } }],
 };
 
-test.afterEach(() => { globalThis.fetch = originalFetch; });
+test.afterEach(() => { globalThis.fetch = originalFetch; resetSession(); });
 
 test("returns normalized glucose reading from mocked login and connection responses", async () => {
   const calls = mockFetch([{ body: login }, { body: reading }]);
@@ -77,4 +77,57 @@ test("follows the region specified during login", async () => {
   await getGlucose("sample@example.invalid", "secret");
   assert.equal(calls.length, 3);
   assert.ok(calls[1].url.startsWith("https://api-eu.libreview.io/"));
+});
+
+test("reuses login session across consecutive readings", async () => {
+  const calls = mockFetch([
+    { body: login }, { body: reading }, { body: reading },
+  ]);
+  const events = [];
+  await getGlucose("sample@example.invalid", "secret", (event) => events.push(event));
+  await getGlucose("sample@example.invalid", "secret", (event) => events.push(event));
+  assert.equal(calls.length, 3);
+  assert.equal(calls.filter((call) => call.url.endsWith("/llu/auth/login")).length, 1);
+  assert.ok(events.includes("SESSION_REUSED"));
+});
+
+test("fetches graph history once and reuses it during five-minute refresh interval", async () => {
+  const withPatient = {
+    data: [{
+      patientId: "11111111-1111-1111-1111-111111111111",
+      glucoseMeasurement: reading.data[0].glucoseMeasurement,
+    }],
+  };
+  const calls = mockFetch([
+    { body: login },
+    { body: withPatient },
+    { body: { data: { graphData: [
+      { FactoryTimestamp: new Date(Date.now() - 2 * 60_000).toISOString(), ValueInMgPerDl: 110 },
+    ] } } },
+    { body: withPatient },
+  ]);
+  const first = await getGlucose("sample@example.invalid", "secret");
+  const second = await getGlucose("sample@example.invalid", "secret");
+  assert.equal(first.history.length, 1);
+  assert.equal(second.history.length, 1);
+  assert.equal(calls.filter((call) => call.url.endsWith("/graph")).length, 1);
+});
+
+test("a failed graph endpoint does not block the current glucose reading", async () => {
+  const withPatient = {
+    data: [{ patientId: "11111111-1111-1111-1111-111111111111", glucoseMeasurement: reading.data[0].glucoseMeasurement }],
+  };
+  mockFetch([{ body: login }, { body: withPatient }, { http: 503, body: {} }]);
+  const result = await getGlucose("sample@example.invalid", "secret");
+  assert.equal(result.value, 124);
+  assert.deepEqual(result.history, []);
+});
+
+test("reauthenticates once on an expired bearer token", async () => {
+  const calls = mockFetch([
+    { body: login }, { http: 401, body: {} }, { body: login }, { body: reading },
+  ]);
+  const result = await getGlucose("sample@example.invalid", "secret");
+  assert.equal(result.value, 124);
+  assert.equal(calls.filter((call) => call.url.endsWith("/llu/auth/login")).length, 2);
 });
