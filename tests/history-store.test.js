@@ -63,7 +63,8 @@ test("background synchronization age uses the phone clock", () => {
   assert.equal(readBackgroundSyncAgeMinutes(storage, "active-account", now), null);
   markBackgroundSync(storage, "active-account", now - 3 * 60_000);
   assert.equal(JSON.parse(storage.getItem(BACKGROUND_SYNC_KEY)).timestamp, now - 3 * 60_000);
-  assert.equal(readBackgroundSyncAgeMinutes(storage, now), 3);
+  assert.equal(readBackgroundSyncAgeMinutes(storage, "active-account", now), 3);
+  assert.equal(readBackgroundSyncAgeMinutes(storage, "other-account", now), null);
   assert.equal(readBackgroundSyncAgeMinutes(storage, "active-account", now - 10 * 60_000), null);
 });
 
