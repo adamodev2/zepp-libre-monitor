@@ -94,3 +94,7 @@ If the worker fails before the startup marker appears, capture the full stack tr
 ## Watch face integration
 
 The glucose display inside **Libre Monitor** is now implemented. A separate live **watch face** is not included in this PR. Zepp OS watch faces do not share the Mini Program Side Service network interface directly; a separate watch-face/background data bridge and installation flow are needed. See https://github.com/orgs/zepp-health/discussions/330.
+
+## Active 2 chart rendering fix
+
+The original CANVAS-based graph displayed a black region even when the watch received real history (for example `LAST 2 HOURS · 7 PTS`). The chart now uses standard Zepp OS CIRCLE markers and GRADKIENT_POLYLINE segments, with a FILL_RECT axis and explicit widget cleanup on refresh. The range remains 2 hours by default, switchable to 1 hour. This change requires real-device verification because CI validates the package but cannot verify graphics on the physical watch.
