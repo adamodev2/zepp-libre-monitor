@@ -7,6 +7,18 @@ The app displays **real glucose readings from FreeStyle Libre via LibreLinkUp** 
 > [!WARNING]
 > **Not a medical device.** This is an experimental, unofficial display. It is **not** approved by Abbott, Zepp Health or a healthcare regulator. Never use it as the sole source for insulin dosing, treatment decisions, hypoglycemia detection or emergency alerts. Keep the official Libre app, CGM notifications and your usual treatment workflow in place.
 
+## Disclaimer: use at your own risk
+
+**USE AT YOUR OWN RISK.** This project is provided **"AS IS" and "AS AVAILABLE"**, without warranties of any kind, including accuracy, reliability, fitness for a particular purpose, continuous operation, or compatibility. Glucose readings, timestamps, history, and background synchronization can be **missing, delayed, incorrect, or unavailable**. Do not use this app to make insulin-dosing or other medical decisions, to detect emergencies, or as a replacement for your approved CGM app and alarms.
+
+**To the maximum extent permitted by applicable law, the author accepts no liability for damage, loss, injury, or other consequences arising from installing, using, modifying, or relying on this project.** Users are responsible for deciding whether to install it, protecting their accounts and data, and independently verifying all medical information with their official CGM system. This statement does not override rights or responsibilities that cannot legally be excluded.
+
+## Development, AI assistance, and sharing
+
+I created Libre Monitor **for my own use** and **I use it myself**. I have built and refined it **together with AI-assisted development tools**. I make a genuine effort to review, test, troubleshoot, and improve the software using my own watch and glucose setup, but **AI-assisted code and my tests may still contain mistakes**.
+
+This is a **work in progress under active development**, not a finished or medically validated product. Features may change, break, or stop working; updates, support, fixes, and continued development are not guaranteed. I share the code publicly so others who find it useful can try it, inspect it, and contribute improvements **at their own risk**. This project is independent and is not affiliated with, endorsed by, or supported by Abbott or Zepp Health.
+
 ## Features and verification status
 
 | Feature | Status |
@@ -150,7 +162,7 @@ GitHub Actions **Zepp OS CI** checks JavaScript and the manifest, runs mocked Li
 
 ## Project background and sharing
 
-I originally made this for my **own glucose monitoring on Amazfit Active 2**, then decided to share the work for others who want to experiment with it or improve it. It is supplied **as-is**, without warranty, medical certification, support promises or affiliation with Abbott or Zepp Health.
+This is my personal, **AI-assisted** project, shared for others who may find it useful. I use it myself, make a genuine effort to test and improve it, and continue developing it. **All use is at your own risk**; see [Disclaimer: use at your own risk](#disclaimer-use-at-your-own-risk) for important limitations and liability terms.
 
 **Licensing note:** There is currently **no `LICENSE` file** in this repository. I am sharing the source for visibility and community interest, but formal permissions for copying, modifying and redistributing it still need a license decision before calling it a fully open-source release. Contributions, suggestions and careful bug reports are welcome.
 
