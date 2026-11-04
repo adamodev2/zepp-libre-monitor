@@ -125,11 +125,12 @@ test("latest real glucose point bridges a moderate 25-minute graph lag", () => {
     { ageMinutes: 25, value: 121 },
     { ageMinutes: 0, value: 126 },
   ], 120, 260, 92);
-  assert.equal(graph.tailGapMinutes, 25);
+  assert.equal(graph.maxGapMinutes, 25);
   assert.equal(graph.dots.length, 4);
-  assert.equal(graph.lines.length, 2);
-  assert.equal(graph.lines[1].dashed, true);
-  const latestLine = graph.lines[1];
+  assert.equal(graph.lines.length, 3);
+  assert.equal(graph.lines[0].dashed, true);
+  assert.equal(graph.lines[2].dashed, true);
+  const latestLine = graph.lines[2];
   assert.deepEqual(
     { x: latestLine.x2, y: latestLine.y2 },
     graph.dots[graph.dots.length - 1],
@@ -144,22 +145,23 @@ test("an actual long gap never becomes a fabricated solid glucose trace", () => 
     { ageMinutes: 40, value: 105 },
     { ageMinutes: 2, value: 120 },
   ], 120, 260, 92);
-  assert.equal(graph.tailGapMinutes, 38);
+  assert.equal(graph.maxGapMinutes, 38);
   assert.equal(graph.lines.length, 1);
   assert.equal(graph.lines[0].dashed, false);
   assert.equal(graph.dots.length, 3);
 });
 
-test("bridging is restricted to a fresh final sample, not a historic gap", () => {
+test("historic 25-minute gaps stay dashed after new readings arrive", () => {
   const graph = chartSegments([
     { ageMinutes: 115, value: 95 },
     { ageMinutes: 90, value: 105 },
     { ageMinutes: 75, value: 115 },
     { ageMinutes: 60, value: 110 },
   ], 120, 260, 92);
-  assert.equal(graph.tailGapMinutes, 0);
-  assert.equal(graph.lines.length, 2);
-  assert.ok(graph.lines.every((line) => !line.dashed));
+  assert.equal(graph.maxGapMinutes, 25);
+  assert.equal(graph.lines.length, 3);
+  assert.equal(graph.lines[0].dashed, true);
+  assert.ok(graph.lines.slice(1).every((line) => !line.dashed));
 });
 
 test("late current measurement is not connected if its freshness exceeds fifteen minutes", () => {
@@ -167,6 +169,26 @@ test("late current measurement is not connected if its freshness exceeds fifteen
     { ageMinutes: 51, value: 95 },
     { ageMinutes: 20, value: 110 },
   ], 120, 260, 92);
-  assert.equal(graph.tailGapMinutes, 0);
+  assert.equal(graph.maxGapMinutes, 31);
   assert.equal(graph.lines.length, 0);
+});
+
+test("gap between older points remains dashed while latest two points connect normally", () => {
+  const graph = chartSegments([
+    { ageMinutes: 100, value: 90 },
+    { ageMinutes: 85, value: 95 },
+    { ageMinutes: 64, value: 110 },
+    { ageMinutes: 44, value: 120 },
+    { ageMinutes: 29, value: 130 },
+    { ageMinutes: 10, value: 125 },
+  ], 120, 260, 92);
+  assert.equal(graph.maxGapMinutes, 21);
+  assert.equal(graph.lines.length, 5);
+  assert.equal(graph.lines.filter((line) => line.dashed).length, 1);
+  assert.equal(graph.lines[1].dashed, true);
+  assert.equal(graph.lines[4].dashed, false);
+  assert.deepEqual(
+    { x: graph.lines[4].x2, y: graph.lines[4].y2 },
+    graph.dots[graph.dots.length - 1],
+  );
 });
