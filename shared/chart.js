@@ -34,6 +34,7 @@ export function chartSegments(points, minutes, width, height) {
   const dots = valid.map(pos);
   const lines = [];
   const segments = [];
+  let tailGapMinutes = 0;
   let chain = [];
 
   for (let i = 0; i < valid.length; i++) {
@@ -44,6 +45,9 @@ export function chartSegments(points, minutes, width, height) {
     // LibreLinkUp graph history can lag the separately fetched latest reading.
     // Bridge only the latest gap, up to 30 minutes, and render it as a dashed
     // connector so missing intermediate measurements remain visually obvious.
+    if (previousPoint && isLatest && gapMinutes > MAX_CONNECT_GAP_MINUTES) {
+      tailGapMinutes = gapMinutes;
+    }
     const isTailBridge = Boolean(previousPoint && isLatest &&
       gapMinutes > MAX_CONNECT_GAP_MINUTES && gapMinutes <= MAX_LATEST_BRIDGE_GAP_MINUTES);
     const connected = Boolean(previousPoint &&
@@ -76,7 +80,7 @@ export function chartSegments(points, minutes, width, height) {
     }
   }
   if (chain.length > 1) segments.push(chain);
-  return { lines, segments, dots, count: valid.length, min, max };
+  return { lines, segments, dots, count: valid.length, min, max, tailGapMinutes };
 }
 
 
