@@ -1,0 +1,60 @@
+name: Zepp OS CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate source
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check JavaScript syntax
+        run: npm run check
+      - name: Verify project manifest
+        run: node scripts/check-manifest.cjs
+      - name: Test LibreLinkUp with mocked responses
+        run: npm test
+
+  build:
+    name: Build Zepp package
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Assign build version
+        id: version
+        run: node scripts/set-version.cjs
+      - name: Prepare Zepp OS build tools
+        run: npm run prepare:zepp
+      - name: Build with Zeus CLI
+        run: npm run build
+        env:
+          CI: "true"
+      - name: Upload Zepp OS package
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zepp-libre-monitor-${{ steps.version.outputs.version }}-${{ steps.version.outputs.channel }}
+          path: |
+            dist/**/*.zab
+            dist/*.zab
+          if-no-files-found: error
+          retention-days: 30
