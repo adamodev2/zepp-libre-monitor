@@ -69,7 +69,8 @@ export function chartStrokePixels(lines, budget = 160) {
   for (const line of lines) {
     const length = Math.max(Math.abs(line.x2 - line.x1), Math.abs(line.y2 - line.y1));
     const steps = Math.max(1, Math.ceil(length / pixelStep));
-    // Endpoints are covered by the larger measurement markers.\n    for (let i = 1; i < steps; i++) {
+    // Endpoints are covered by the larger measurement markers.
+    for (let i = 1; i < steps; i++) {
       const x = Math.round(line.x1 + ((line.x2 - line.x1) * i) / steps);
       const y = Math.round(line.y1 + ((line.y2 - line.y1) * i) / steps);
       const key = x + ":" + y;
