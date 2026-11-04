@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check app.js && node --check app-side/index.js && node --check page/index.js && node --check shared/glucose.js && node --check app-side/librelinkup.js && node --check setting/index.js && node --check app-side/diagnostics.js && node --check app-side/sha256.js && node --check app-side/timestamps.js && node --check shared/chart.js",
+    "check": "node --check app.js && node --check app-side/index.js && node --check page/index.js && node --check shared/glucose.js && node --check app-side/librelinkup.js && node --check setting/index.js && node --check app-side/diagnostics.js && node --check app-side/sha256.js && node --check app-side/timestamps.js && node --check shared/chart.js && node --check shared/watch-layout.js",
     "build": "zeus build",
     "dev": "zeus dev",
     "prepare:zepp": "node scripts/prepare-zepp.cjs",
