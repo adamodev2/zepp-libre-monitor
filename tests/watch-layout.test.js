@@ -14,11 +14,12 @@ function validateSpacing(layout) {
 test("round Active 2 shows 10% larger glucose with adjacent aligned trend", () => {
   const layout = createWatchLayout(466, 466, false);
   assert.equal(layout.glucose.size, Math.round(84 * 1.1));
-  assert.equal(layout.arrow.x, layout.glucose.x + layout.glucose.w + 5);
+  assert.equal(layout.arrow.x, layout.glucose.x + layout.glucose.w + 15);
   assert.ok(Math.abs(
     (layout.glucose.y + layout.glucose.h / 2) -
     (layout.arrow.y + layout.arrow.h / 2),
   ) <= 1);
+  assert.ok(layout.arrow.x + layout.arrow.w <= 466 - 90);
   validateSpacing(layout);
 });
 
@@ -54,6 +55,8 @@ test("square Active 2 layout keeps the chart and controls separated", () => {
   const layout = createWatchLayout(390, 450, true);
   assert.equal(layout.glucose.size, Math.round(84 * 1.1));
   validateSpacing(layout);
+  assert.equal(layout.arrow.x - (layout.glucose.x + layout.glucose.w), 15);
+  assert.ok(layout.arrow.x + layout.arrow.w <= 390 - 55);
   assert.ok(layout.controls.x >= 0);
   assert.ok(layout.controls.x + 2 * layout.controls.w + layout.controls.gap <= 390);
   assert.ok(layout.controls.y + layout.controls.h <= 450);
