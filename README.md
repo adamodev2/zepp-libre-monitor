@@ -106,3 +106,7 @@ The graph now uses five-minute sampling buckets (no synthetic values) and native
 ## Active 2 line/marker alignment
 
 The native GRADKIENT_POLYLINE widget uses local bottom-origin coordinates, while CIRCLE markers use absolute screen coordinates. A physical-device test showed the two renderers did not align. For consistent placement, connecting strokes now use short FILL_RECT segments generated in the same absolute top-left coordinate system as the CIRCLE measurement markers. The rasterized stroke has a capped widget budget, keeps missing-data gaps, and does not alter LibreLinkUp readings or five-minute sampling. Physical-device confirmation is still needed.
+
+## Latest-point chart gap
+
+The current LibreLinkUp reading may be newer than the history returned by the graph endpoint. If the last two real observations are separated by 21–30 minutes, the chart connects only that final pair with a dashed line and displays `GAP Nm`. This is a visual connector, not reconstructed readings. For gaps longer than 30 minutes the dot remains separate and the label still reports the gap. Other historical gaps greater than 20 minutes remain disconnected. This UI change requires real-watch verification.
