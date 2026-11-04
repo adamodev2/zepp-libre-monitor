@@ -204,7 +204,7 @@ export async function getGlucose(email, password, report = () => {}, storage = n
     source: "LibreLinkUp",
     historyMeta: {
       graphAgeMinutes,
-      backgroundSyncAgeMinutes: readBackgroundSyncAgeMinutes(storage, now),
+      backgroundSyncAgeMinutes: readBackgroundSyncAgeMinutes(storage, sha256(email.trim().toLowerCase()), now),
     },
     history: history.map((point) => ({
       value: point.value,
