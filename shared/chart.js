@@ -1,6 +1,6 @@
 const SAMPLE_MINUTES = 5;
 const MAX_CONNECT_GAP_MINUTES = 20;
-const MAX_LATEST_BRIDGE_GAP_MINUTES = 30;
+const MAX_DASHED_GAP_MINUTES = 30;
 
 export function chartSegments(points, minutes, width, height) {
   if (!Array.isArray(points) || (minutes !== 120 && minutes !== 360)) {
@@ -34,42 +34,44 @@ export function chartSegments(points, minutes, width, height) {
   const dots = valid.map(pos);
   const lines = [];
   const segments = [];
-  let tailGapMinutes = 0;
+  let maxGapMinutes = 0;
   let chain = [];
 
   for (let i = 0; i < valid.length; i++) {
     const current = dots[i];
-    const previousPoint = i > 0 ? valid[i - 1] : null;
-    const gapMinutes = previousPoint ? previousPoint.ageMinutes - valid[i].ageMinutes : 0;
-    const isLatest = i === valid.length - 1 && valid[i].ageMinutes <= 15;
-    // The graph API can lag the separately supplied current glucose reading.
-    // Indicate a 21-30 minute tail gap with a dashed connector, not fake samples.
-    if (previousPoint && isLatest && gapMinutes > MAX_CONNECT_GAP_MINUTES) {
-      tailGapMinutes = gapMinutes;
+    const previous = i > 0 ? valid[i - 1] : null;
+    const gapMinutes = previous ? previous.ageMinutes - valid[i].ageMinutes : 0;
+    if (previous && gapMinutes > MAX_CONNECT_GAP_MINUTES) {
+      maxGapMinutes = Math.max(maxGapMinutes, gapMinutes);
     }
-    const isTailBridge = Boolean(previousPoint && isLatest &&
-      gapMinutes > MAX_CONNECT_GAP_MINUTES && gapMinutes <= MAX_LATEST_BRIDGE_GAP_MINUTES);
-    const connected = Boolean(previousPoint &&
-      (gapMinutes <= MAX_CONNECT_GAP_MINUTES || isTailBridge));
 
-    if (previousPoint && !connected) {
+    // A delayed graph sample can leave a gap behind as newer live samples
+    // arrive. Apply the same gap rendering everywhere, not only at the tail.
+    const dashed = Boolean(previous &&
+      gapMinutes > MAX_CONNECT_GAP_MINUTES &&
+      gapMinutes <= MAX_DASHED_GAP_MINUTES);
+    const connected = Boolean(previous &&
+      (gapMinutes <= MAX_CONNECT_GAP_MINUTES || dashed));
+
+    if (previous && !connected) {
       if (chain.length > 1) segments.push(chain);
       chain = [];
     }
     chain.push(current);
     if (connected) {
-      const previous = dots[i - 1];
-      if (previous.x !== current.x || previous.y !== current.y) {
+      const previousDot = dots[i - 1];
+      if (previousDot.x !== current.x || previousDot.y !== current.y) {
         lines.push({
-          x1: previous.x, y1: previous.y, x2: current.x, y2: current.y,
-          dashed: isTailBridge,
+          x1: previousDot.x, y1: previousDot.y,
+          x2: current.x, y2: current.y,
+          dashed,
         });
       }
     }
   }
 
   if (chain.length > 1) segments.push(chain);
-  return { lines, segments, dots, count: valid.length, min, max, tailGapMinutes };
+  return { lines, segments, dots, count: valid.length, min, max, maxGapMinutes };
 }
 
 // Rasterize connected graph segments in the same top-left coordinate system
