@@ -55,31 +55,6 @@ export function chartSegments(points, minutes, width, height) {
 
     if (previousPoint && !connected) {
       if (chain.length > 1) segments.push(chain);
-      chain = [];
-    }
-    chain.push(current);
-    if (connected) {
-      const previous = dots[i - 1];
-      if (previous.x !== current.x || previous.y !== current.y) {
-        lines.push({
-          x1: previous.x, y1: previous.y, x2: current.x, y2: current.y,
-          dashed: isTailBridge,
-        });
-      }
-    }
-  }
-  if (chain.length > 1) segments.push(chain);
-      chain = [];
-    }
-    chain.push(current);
-    if (i > 0 && valid[i - 1].ageMinutes - valid[i].ageMinutes <= MAX_CONNECT_GAP_MINUTES) {
-      const previous = dots[i - 1];
-      if (previous.x !== current.x || previous.y !== current.y) {
-        lines.push({ x1: previous.x, y1: previous.y, x2: current.x, y2: current.y });
-      }
-    }
-  }
-  if (chain.length > 1) segments.push(chain);
   return { lines, segments, dots, count: valid.length, min, max, tailGapMinutes };
 }
 
