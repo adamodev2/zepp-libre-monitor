@@ -60,11 +60,11 @@ Page(BasePage({
     });
     this.toggleChart = hmUI.createWidget(hmUI.widget.BUTTON, {
       x: Math.round(WIDTH / 2) - 112, y: layout.button, w: 108, h: 41,
-      text: "1h / 2h", text_size: 16,
+      text: "2h / 6h", text_size: 16,
       color: WHITE, normal_color: 0x263442,
       press_color: 0x405163, radius: 18,
       click_func: () => {
-        this.chartMinutes = this.chartMinutes === 120 ? 60 : 120;
+        this.chartMinutes = this.chartMinutes === 120 ? 360 : 120;
         this.drawChart();
       },
     });
@@ -114,7 +114,7 @@ Page(BasePage({
     const width = 260, height = 92;
     const graph = chartSegments(this.history, this.chartMinutes, width, height);
     this.clearChartWidgets();
-    this.chartCaption.setProperty(hmUI.prop.TEXT, `LAST ${this.chartMinutes === 60 ? "1 HOUR" : "2 HOURS"} · ${graph.count} PTS`);
+    this.chartCaption.setProperty(hmUI.prop.TEXT, `LAST ${this.chartMinutes === 120 ? "2 HOURS" : "6 HOURS"} · ${graph.count} PTS`);
     const ox = this.chartOriginX;
     const oy = layout.chart;
     const axisColor = 0x436078;
@@ -124,24 +124,20 @@ Page(BasePage({
     this.addChartWidget(hmUI.widget.FILL_RECT, {
       x: ox, y: oy, w: 1, h: height, color: axisColor,
     });
-    // Each continuous pair is drawn independently; gaps remain visible.
-    // POLYLINE takes y values relative to the BOTTOM of its viewport.
-    for (const line of graph.lines) {
+    // One native polyline per continuous segment, avoiding a widget per pair.
+    // Zepp measures polyline y coordinates up from the bottom of its viewport.
+    for (const segment of graph.segments) {
       const lineWidget = hmUI.createWidget(hmUI.widget.GRADKIENT_POLYLINE, {
         x: ox, y: oy, w: width, h: height,
         line_color: GREEN, line_width: 2,
       });
       this.chartWidgets.push(lineWidget);
       lineWidget.addLine({
-        data: [
-          { x: line.x1, y: height - 1 - line.y1 },
-          { x: line.x2, y: height - 1 - line.y2 },
-        ],
-        count: 2,
+        data: segment.map((point) => ({ x: point.x, y: height - 1 - point.y })),
+        count: segment.length,
       });
     }
-    // Draw individual real measurements with standard Zepp CIRCLE widgets.
-    // Larger markers make sparse 15-minute history visible on the watch.
+    // Show one actual measurement per five-minute bucket.
     for (const dot of graph.dots) {
       this.addChartWidget(hmUI.widget.CIRCLE, {
         center_x: ox + dot.x, center_y: oy + dot.y,
