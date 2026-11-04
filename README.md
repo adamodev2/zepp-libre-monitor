@@ -84,8 +84,8 @@ If the worker fails before the startup marker appears, capture the full stack tr
 
 ## Mini chart and session reuse
 
-- The watch shows a 2-hour glucose trace, switchable to 1 hour with the **1h / 2h** button.
-- Actual points come from the unofficial LibreLinkUp `/llu/connections/{patientId}/graph` endpoint. Samples are positioned by minute, gaps of more than five minutes are not connected. If graph history is unavailable, current glucose remains visible.
+- The watch shows a 2-hour glucose trace, switchable to 6 hours with the **2h / 6h** button. It displays at most one actual measurement per five-minute time bucket, with adjacent points connected when their timestamps differ by no more than twenty minutes. Longer gaps remain unconnected.
+- Actual points come from the unofficial LibreLinkUp `/llu/connections/{patientId}/graph` endpoint. Samples are positioned by time with five-minute buckets, and gaps longer than twenty minutes are not connected. If graph history is unavailable, current glucose remains visible.
 - Graph history is requested at most once per five minutes while the Side Service is running. Live current glucose is requested every minute while the page is open.
 - LibreLinkUp bearer tokens and account hash remain in memory only and are reused for up to 45 minutes, with a single reauthentication attempt after an HTTP 401. Closing/restarting the Zepp Side Service may require signing in again.
 - `GRAPH_HTTP`, `GRAPH_POINTS`, `GRAPH_UNAVAILABLE` and `SESSION_REUSED` diagnostics contain no account IDs, tokens, passwords, glucose values or graph contents.
@@ -97,4 +97,8 @@ The glucose display inside **Libre Monitor** is now implemented. A separate live
 
 ## Active 2 chart rendering fix
 
-The original CANVAS-based graph displayed a black region even when the watch received real history (for example `LAST 2 HOURS · 7 PTS`). The chart now uses standard Zepp OS CIRCLE markers and GRADKIENT_POLYLINE segments, with a FILL_RECT axis and explicit widget cleanup on refresh. The range remains 2 hours by default, switchable to 1 hour. This change requires real-device verification because CI validates the package but cannot verify graphics on the physical watch.
+The original CANVAS-based graph displayed a black region even when the watch received real history (for example `LAST 2 HOURS · 7 PTS`). The chart now uses standard Zepp OS CIRCLE markers and GRADKIENT_POLYLINE segments, with a FILL_RECT axis and explicit widget cleanup on refresh. The range remains 2 hours by default, switchable to 6 hours. This change requires real-device verification because CI validates the package but cannot verify graphics on the physical watch.
+
+## Two/six-hour graph update
+
+The graph now uses five-minute sampling buckets (no synthetic values) and native connected polylines for actual points no more than twenty minutes apart. This accommodates the sparse points returned by Abbott while retaining visible breaks during outages. The phone retains up to six hours of graph/history data and the watch switches between two and six hours without another login. Graph history older than what Abbott returns cannot be reconstructed automatically. The graph is not intended for treatment decisions.
