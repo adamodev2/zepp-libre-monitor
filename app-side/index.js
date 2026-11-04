@@ -2,6 +2,7 @@ import { BaseSideService } from "@zeppos/zml/base-side";
 import { getGlucose } from "./librelinkup";
 import { addDiagnostic } from "./diagnostics";
 import { markBackgroundSync } from "./history-store";
+import { sha256 } from "./sha256";
 
 function publicError(error) {
   const message = String(error?.message || "");
@@ -36,7 +37,7 @@ AppSideService(BaseSideService({
       const reading = await getGlucose(email, password, addDiagnostic, settings.settingsStorage);
       if (isBackgroundSync) {
         if (Number.isFinite(reading.ageMs) && reading.ageMs >= -60_000 && reading.ageMs <= 15 * 60_000) {
-          markBackgroundSync(settings.settingsStorage);
+          markBackgroundSync(settings.settingsStorage, sha256(email.trim().toLowerCase()));
           addDiagnostic("BACKGROUND_SUCCESS");
           res(null, { ok: true });
         } else {
