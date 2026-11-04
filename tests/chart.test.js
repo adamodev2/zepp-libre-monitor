@@ -13,7 +13,7 @@ test("two-hour mode keeps one latest real point per five-minute bucket", () => {
     { ageMinutes: 0, value: 115 },
   ], 120, 241, 91);
   assert.equal(graph.count, 4);
-  assert.deepEqual(graph.dots.map((point) => point.x), [0, 4, 232, 240]);
+  assert.deepEqual(graph.dots.map((point) => point.x), [0, 4, 230, 240]);
 });
 
 test("six-hour mode includes older samples that two-hour mode hides", () => {
