@@ -1,5 +1,6 @@
 import { sha256 } from "./sha256.js";
 import { parseFactoryTimestamp } from "./timestamps.js";
+import { readStoredHistory, saveStoredHistory, readBackgroundSyncAgeMinutes } from "./history-store.js";
 
 const ALLOWED_REGIONS = ["", "eu", "us", "ap", "au", "ca", "de", "fr", "jp", "ru"];
 const SESSION_MAX_AGE_MS = 45 * 60_000;
@@ -102,7 +103,7 @@ export function parseHistory(graphData, now = Date.now()) {
   return Object.keys(dedup).map((key) => dedup[key]).sort((a, b) => a.timestamp - b.timestamp).slice(-361);
 }
 
-function combineHistory(graphPoints, current, patientId, now) {
+function combineHistory(graphPoints, current, patientId, now, storage) {
   if (patientId !== activePatientId) {
     liveSamples = [];
     activePatientId = patientId;
@@ -111,7 +112,7 @@ function combineHistory(graphPoints, current, patientId, now) {
     liveSamples.push({ timestamp: current.timestamp, value: current.value });
   }
   const dedup = {};
-  for (const point of [...graphPoints, ...liveSamples]) {
+  for (const point of [...readStoredHistory(storage, patientId, now), ...graphPoints, ...liveSamples]) {
     if (point.timestamp >= now - HISTORY_WINDOW_MS && point.timestamp <= now + 60_000) {
       dedup[Math.floor(point.timestamp / 60_000)] = point;
     }
@@ -119,6 +120,9 @@ function combineHistory(graphPoints, current, patientId, now) {
   const result = Object.keys(dedup).map((key) => dedup[key])
     .sort((a, b) => a.timestamp - b.timestamp).slice(-361);
   liveSamples = liveSamples.filter((point) => point.timestamp >= now - HISTORY_WINDOW_MS);
+  // The watch may close or the Zepp phone service may be restarted.
+  // Persist only timestamps and glucose values, never Abbott credentials.
+  saveStoredHistory(storage, patientId, result, now);
   return result;
 }
 
@@ -144,7 +148,7 @@ async function loadHistory(auth, patientId, report) {
   }
 }
 
-export async function getGlucose(email, password, report = () => {}) {
+export async function getGlucose(email, password, report = () => {}, storage = null) {
   if (!email || !password) throw new Error("Configure LibreLinkUp account in Zepp settings");
   const key = sha256(email + "\n" + password);
   if (!session || session.key !== key || Date.now() - session.at >= SESSION_MAX_AGE_MS) {
@@ -179,13 +183,29 @@ export async function getGlucose(email, password, report = () => {}) {
 
   const patientId = typeof connection.patientId === "string" ? connection.patientId : "";
   const graphHistory = await loadHistory(session, patientId, report);
-  const history = combineHistory(graphHistory, { timestamp: parsed, value: Math.round(Number(reading.ValueInMgPerDl ?? reading.Value)) }, patientId, Date.now());
+  const now = Date.now();
+  const patientKey = sha256(patientId || email.trim().toLowerCase());
+  const history = combineHistory(
+    graphHistory,
+    { timestamp: parsed, value: Math.round(Number(reading.ValueInMgPerDl ?? reading.Value)) },
+    patientKey,
+    now,
+    storage,
+  );
+  const newestGraphPoint = graphHistory.length ? graphHistory[graphHistory.length - 1] : null;
+  const graphAgeMinutes = newestGraphPoint
+    ? Math.max(0, Math.floor((now - newestGraphPoint.timestamp) / 60_000))
+    : null;
   return {
     value: Math.round(Number(reading.ValueInMgPerDl ?? reading.Value)),
     trend: Number(reading.TrendArrow) || 0,
     timestamp: parsed,
     ageMs,
     source: "LibreLinkUp",
+    historyMeta: {
+      graphAgeMinutes,
+      backgroundSyncAgeMinutes: readBackgroundSyncAgeMinutes(storage, now),
+    },
     history: history.map((point) => ({
       value: point.value,
       ageMinutes: Math.max(0, Math.round((Date.now() - point.timestamp) / 60_000)),
