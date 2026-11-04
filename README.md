@@ -110,3 +110,20 @@ The native GRADKIENT_POLYLINE widget uses local bottom-origin coordinates, while
 ## Latest-point chart gap
 
 The current LibreLinkUp reading may be newer than the history returned by the graph endpoint. Whenever two real observations are separated by 21–30 minutes, the chart shows a dashed connector, even after newer measurements move that gap into the historical trace. `GAP Nm` reports the largest visible gap over 20 minutes. A dashed connector does not represent reconstructed readings. Gaps longer than 30 minutes remain disconnected; missing glucose measurements are never fabricated. This UI change requires real-watch verification.
+
+## Experimental background history collection (opt-in)
+
+The main app continues to work without any background permission or service. Background sync is **OFF by default**.
+
+- The watch now displays `ABBOTT GRAPH Xm OLD`, the age of the last true graph point from Abbott. This is separate from the regular live-glucose age (`LibreLinkUp · Xm ago`).
+- The phone Side Service saves up to six hours of actual timestamped glucose history in Zepp Settings Storage under an opaque patient fingerprint. It does not store tokens or passwords in the history record. History remains available after a Side Service restart, even if the Abbott graph endpoint temporarily fails. **Glucose history is sensitive health data and Zepp Settings Storage is not confirmed encrypted.** Do not use this version on a shared phone.
+- To test background sync, tap `BG OFF` on the watch and grant the Zepp OS background-service permission. If successfully started, the button changes to `BG ON`. Tap `BG ON` to stop. Never assume background collection is working based only on this button: return later and check the `BG Xm` time.
+- The optional Zepp OS v3 `App Service` listens for the system minute event and requests a phone-side glucose update about every five minutes, even when the foreground Libre Monitor page is closed. The phone must remain reachable and its Zepp Side Service must respond.
+- **Critical limitation:** Zepp OS may deny background services to apps installed through the private `zeus preview` QR flow (error `BG unavailable`, e.g. code 6). Background App Service to Side Service requests are not verified on Amazfit Active 2. Installing from an approved Zepp App Store package may be required; even then, Android battery restrictions can prevent reliable polling. No guarantee of 24/7 updates or delivery is made.
+- The current reading and chart remain functional if background service startup fails or permission is denied. Do not use these data for insulin dosing or replace official Libre alarms.
+
+### Verify the two ages
+
+If the watch shows `LibreLinkUp · 1 min ago` but `ABBOTT GRAPH 21m OLD`, the live glucose is recent while Abbott's historical graph is delayed. If `BG ON` and `BG 3m` appear after closing and reopening the app, the background requests reached the phone recently. `BG WAIT` means no successful background fetch has been recorded.
+
+To inspect failures, use the Zepp app's Developer Mode device logs for `BG_SYNC_OK` / `BG_SYNC_FAILED` and Side Service Diagnostics for `BACKGROUND_REQUEST`, `BACKGROUND_SUCCESS`, or `BACKGROUND_FAILURE`. Never share account credentials or raw HTTP request logs.
