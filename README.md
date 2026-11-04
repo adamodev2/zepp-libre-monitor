@@ -102,3 +102,7 @@ The original CANVAS-based graph displayed a black region even when the watch rec
 ## Two/six-hour graph update
 
 The graph now uses five-minute sampling buckets (no synthetic values) and native connected polylines for actual points no more than twenty minutes apart. This accommodates the sparse points returned by Abbott while retaining visible breaks during outages. The phone retains up to six hours of graph/history data and the watch switches between two and six hours without another login. Graph history older than what Abbott returns cannot be reconstructed automatically. The graph is not intended for treatment decisions.
+
+## Active 2 line/marker alignment
+
+The native GRADKIENT_POLYLINE widget uses local bottom-origin coordinates, while CIRCLE markers use absolute screen coordinates. A physical-device test showed the two renderers did not align. For consistent placement, connecting strokes now use short FILL_RECT segments generated in the same absolute top-left coordinate system as the CIRCLE measurement markers. The rasterized stroke has a capped widget budget, keeps missing-data gaps, and does not alter LibreLinkUp readings or five-minute sampling. Physical-device confirmation is still needed.
