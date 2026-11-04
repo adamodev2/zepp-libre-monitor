@@ -6,7 +6,7 @@ export function createWatchLayout(width, height, isSquare) {
   const numberWidth = isSquare ? 195 : 203;
   const numberRight = centerX + (isSquare ? 49 : 50);
   const numberX = numberRight - numberWidth;
-  const arrowX = numberRight + 5;
+  const arrowX = numberRight + 15;
   const chartWidth = Math.min(width - 92, isSquare ? 260 : 266);
   const buttonWidth = isSquare ? 105 : 108;
   const buttonGap = 10;
