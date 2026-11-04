@@ -142,23 +142,32 @@ Page(BasePage({
     if (this.backgroundPending) return;
     this.backgroundPending = true;
     if (this.backgroundEnabled) {
-      const result = stop({
-        file: BACKGROUND_SERVICE_PATH,
-        complete_func: (event) => {
-          this.setBackgroundState(!event?.result);
-          if (!event?.result) {
-            this.status.setProperty(hmUI.prop.TEXT, "Could not stop background service");
-          }
-        },
-      });
-      if (result !== 0) {
+      try {
+        const result = stop({
+          file: BACKGROUND_SERVICE_PATH,
+          complete_func: (event) => {
+            if (this.destroyed) return;
+            this.setBackgroundState(!event?.result);
+            if (!event?.result) {
+              this.status.setProperty(hmUI.prop.TEXT, "Could not stop background service");
+            }
+          },
+        });
+        if (result !== 0) {
+          this.setBackgroundState(true);
+          this.status.setProperty(hmUI.prop.TEXT, `Background stop error: ${result}`);
+        }
+      } catch (_) {
         this.setBackgroundState(true);
-        this.status.setProperty(hmUI.prop.TEXT, `Background stop error: ${result}`);
+        this.status.setProperty(hmUI.prop.TEXT, "Background stop not supported");
       }
       return;
     }
 
+    let startRequested = false;
     const startService = () => {
+      if (startRequested || this.destroyed) return;
+      startRequested = true;
       try {
         const result = start({
           file: BACKGROUND_SERVICE_PATH,
