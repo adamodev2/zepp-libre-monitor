@@ -3,7 +3,7 @@ import { getDeviceInfo, SCREEN_SHAPE_SQUARE } from "@zos/device";
 import * as timer from "@zos/timer";
 import { BasePage } from "@zeppos/zml/base-page";
 import { normalizeReading, trendArrow, glucoseBand } from "../shared/glucose";
-import { chartSegments } from "../shared/chart";
+import { chartSegments, chartStrokePixels } from "../shared/chart";
 
 const device = getDeviceInfo();
 const WIDTH = device.width || 466;
@@ -124,17 +124,13 @@ Page(BasePage({
     this.addChartWidget(hmUI.widget.FILL_RECT, {
       x: ox, y: oy, w: 1, h: height, color: axisColor,
     });
-    // One native polyline per continuous segment, avoiding a widget per pair.
-    // Zepp measures polyline y coordinates up from the bottom of its viewport.
-    for (const segment of graph.segments) {
-      const lineWidget = hmUI.createWidget(hmUI.widget.GRADKIENT_POLYLINE, {
-        x: ox, y: oy, w: width, h: height,
-        line_color: GREEN, line_width: 2,
-      });
-      this.chartWidgets.push(lineWidget);
-      lineWidget.addLine({
-        data: segment.map((point) => ({ x: point.x, y: height - 1 - point.y })),
-        count: segment.length,
+    // Draw connectors and measurement dots in the SAME absolute screen coordinates.
+    // Avoid GRADKIENT_POLYLINE: its device-local bottom-origin coordinate system
+    // did not align with CIRCLE markers on the physical Active 2.
+    for (const pixel of chartStrokePixels(graph.lines)) {
+      this.addChartWidget(hmUI.widget.FILL_RECT, {
+        x: ox + pixel.x - 1, y: oy + pixel.y - 1,
+        w: 3, h: 3, color: GREEN,
       });
     }
     // Show one actual measurement per five-minute bucket.
