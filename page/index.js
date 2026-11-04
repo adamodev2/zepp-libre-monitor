@@ -4,14 +4,13 @@ import * as timer from "@zos/timer";
 import { BasePage } from "@zeppos/zml/base-page";
 import { normalizeReading, trendArrow, glucoseBand } from "../shared/glucose";
 import { chartSegments, chartStrokePixels } from "../shared/chart";
+import { createWatchLayout } from "../shared/watch-layout";
 
 const device = getDeviceInfo();
 const WIDTH = device.width || 466;
 const HEIGHT = device.height || 466;
 const isSquare = device.screenShape === SCREEN_SHAPE_SQUARE;
-const layout = isSquare
-  ? { heading: 22, value: 72, units: 168, trend: 197, chart: 260, status: 365, button: HEIGHT - 58 }
-  : { heading: 35, value: 78, units: 174, trend: 210, chart: 268, status: 374, button: HEIGHT - 61 };
+const layout = createWatchLayout(WIDTH, HEIGHT, isSquare);
 const WHITE = 0xffffff;
 const MUTED = 0xa4b0bb;
 const GREEN = 0x41d98a;
@@ -21,13 +20,15 @@ const REFRESH_INTERVAL_MS = 60_000;
 const MAX_READING_AGE_MS = 15 * 60_000;
 const REQUEST_TIMEOUT_MS = 20_000;
 
-function label(y, height, size, color, text) {
+function label(frame, color, text, options = {}) {
   return hmUI.createWidget(hmUI.widget.TEXT, {
-    x: 25, y, w: WIDTH - 50, h: height,
-    color, text_size: size,
+    x: 25, y: frame.y, w: WIDTH - 50, h: frame.h,
+    color, text_size: frame.size,
     align_h: hmUI.align.CENTER_H,
     align_v: hmUI.align.CENTER_V,
+    text_style: hmUI.text_style.ELLIPSIS,
     text,
+    ...options,
   });
 }
 
@@ -43,30 +44,39 @@ Page(BasePage({
     this.chartWidgets = [];
   },
   build() {
-    this.heading = label(layout.heading, 32, 25, MUTED, "LIBRE MONITOR");
-    this.value = label(layout.value, 100, 84, WHITE, "--");
-    this.units = label(layout.units, 34, 23, MUTED, "mg/dL");
-    this.trend = label(layout.trend, 45, 36, WHITE, "·");
-    // Use native Zepp widgets instead of CANVAS, which rendered blank on Active 2.
-    this.chartOriginX = Math.round((WIDTH - 260) / 2);
-    this.chartCaption = label(layout.chart - 25, 23, 17, MUTED, "LAST 2 HOURS");
-    this.status = label(layout.status, 27, 16, MUTED, "Connecting to LibreLinkUp...");
-    this.refresh = hmUI.createWidget(hmUI.widget.BUTTON, {
-      x: Math.round(WIDTH / 2) + 4, y: layout.button, w: 108, h: 41,
-      text: "Refresh", text_size: 17,
+    this.heading = label(layout.heading, MUTED, "LIBRE MONITOR");
+    // Place the 10% larger reading and the smaller trend arrow on one row.
+    // Right/left alignment keeps the arrow immediately next to 1-3 digits.
+    this.value = label(layout.glucose, WHITE, "--", {
+      x: layout.glucose.x, w: layout.glucose.w,
+      align_h: hmUI.align.RIGHT,
+    });
+    this.trend = label(layout.arrow, WHITE, "·", {
+      x: layout.arrow.x, w: layout.arrow.w,
+      align_h: hmUI.align.LEFT,
+    });
+    this.units = label(layout.units, MUTED, "mg/dL");
+    // Chart, labels and controls use the space freed by the old trend row.
+    this.chartCaption = label(layout.chartCaption, MUTED, "LAST 2 HOURS");
+    this.status = label(layout.status, MUTED, "Connecting to LibreLinkUp...");
+    this.toggleChart = hmUI.createWidget(hmUI.widget.BUTTON, {
+      x: layout.controls.x, y: layout.controls.y,
+      w: layout.controls.w, h: layout.controls.h,
+      text: "2h / 6h", text_size: layout.controls.size,
       color: WHITE, normal_color: 0x263442,
       press_color: 0x405163, radius: 20,
-      click_func: () => this.loadReading(),
-    });
-    this.toggleChart = hmUI.createWidget(hmUI.widget.BUTTON, {
-      x: Math.round(WIDTH / 2) - 112, y: layout.button, w: 108, h: 41,
-      text: "2h / 6h", text_size: 16,
-      color: WHITE, normal_color: 0x263442,
-      press_color: 0x405163, radius: 18,
       click_func: () => {
         this.chartMinutes = this.chartMinutes === 120 ? 360 : 120;
         this.drawChart();
       },
+    });
+    this.refresh = hmUI.createWidget(hmUI.widget.BUTTON, {
+      x: layout.controls.x + layout.controls.w + layout.controls.gap,
+      y: layout.controls.y, w: layout.controls.w, h: layout.controls.h,
+      text: "Refresh", text_size: layout.controls.size,
+      color: WHITE, normal_color: 0x263442,
+      press_color: 0x405163, radius: 20,
+      click_func: () => this.loadReading(),
     });
     this.drawChart();
     this.loadReading();
@@ -101,7 +111,7 @@ Page(BasePage({
   showError(message) {
     this.value.setProperty(hmUI.prop.TEXT, "--");
     this.trend.setProperty(hmUI.prop.TEXT, "·");
-    this.status.setProperty(hmUI.prop.TEXT, String(message).slice(0, 58));
+    this.status.setProperty(hmUI.prop.TEXT, String(message).slice(0, 46));
   },
   clearChartWidgets() {
     for (const widget of this.chartWidgets) hmUI.deleteWidget(widget);
@@ -111,13 +121,13 @@ Page(BasePage({
     this.chartWidgets.push(hmUI.createWidget(type, options));
   },
   drawChart() {
-    const width = 260, height = 92;
+    const width = layout.chart.w, height = layout.chart.h;
     const graph = chartSegments(this.history, this.chartMinutes, width, height);
     this.clearChartWidgets();
     const gapLabel = graph.maxGapMinutes ? ` · GAP ${Math.round(graph.maxGapMinutes)}m` : "";
     this.chartCaption.setProperty(hmUI.prop.TEXT, `LAST ${this.chartMinutes === 120 ? "2 HOURS" : "6 HOURS"} · ${graph.count} PTS${gapLabel}`);
-    const ox = this.chartOriginX;
-    const oy = layout.chart;
+    const ox = layout.chart.x;
+    const oy = layout.chart.y;
     const axisColor = 0x436078;
     this.addChartWidget(hmUI.widget.FILL_RECT, {
       x: ox, y: oy + height - 1, w: width, h: 1, color: axisColor,
