@@ -144,8 +144,8 @@ Page(BasePage({
     // Larger markers make sparse 15-minute history visible on the watch.
     for (const dot of graph.dots) {
       this.addChartWidget(hmUI.widget.CIRCLE, {
-        x: ox + dot.x - 3, y: oy + dot.y - 3,
-        w: 7, h: 7, radius: 3, color: GREEN,
+        center_x: ox + dot.x, center_y: oy + dot.y,
+        radius: 3, color: GREEN,
       });
     }
     if (graph.count === 0) {
