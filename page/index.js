@@ -114,7 +114,8 @@ Page(BasePage({
     const width = 260, height = 92;
     const graph = chartSegments(this.history, this.chartMinutes, width, height);
     this.clearChartWidgets();
-    this.chartCaption.setProperty(hmUI.prop.TEXT, `LAST ${this.chartMinutes === 120 ? "2 HOURS" : "6 HOURS"} · ${graph.count} PTS`);
+    const gapLabel = graph.tailGapMinutes ? ` · GAP ${Math.round(graph.tailGapMinutes)}m` : "";
+    this.chartCaption.setProperty(hmUI.prop.TEXT, `LAST ${this.chartMinutes === 120 ? "2 HOURS" : "6 HOURS"} · ${graph.count} PTS${gapLabel}`);
     const ox = this.chartOriginX;
     const oy = layout.chart;
     const axisColor = 0x436078;
@@ -127,7 +128,17 @@ Page(BasePage({
     // Draw connectors and measurement dots in the SAME absolute screen coordinates.
     // Avoid GRADKIENT_POLYLINE: its device-local bottom-origin coordinate system
     // did not align with CIRCLE markers on the physical Active 2.
-    for (const pixel of chartStrokePixels(graph.lines)) {
+    for (const pixel of chartStrokePixels(graph.lines.filter((line) => !line.dashed), 140)) {
+      this.addChartWidget(hmUI.widget.FILL_RECT, {
+        x: ox + pixel.x - 1, y: oy + pixel.y - 1,
+        w: 3, h: 3, color: GREEN,
+      });
+    }
+    // A dashed latest-point connector signals a genuine gap in measured data.
+    const bridgePixels = chartStrokePixels(graph.lines.filter((line) => line.dashed), 25);
+    for (let i = 0; i < bridgePixels.length; i++) {
+      if (i % 3 === 2) continue;
+      const pixel = bridgePixels[i];
       this.addChartWidget(hmUI.widget.FILL_RECT, {
         x: ox + pixel.x - 1, y: oy + pixel.y - 1,
         w: 3, h: 3, color: GREEN,
