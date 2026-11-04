@@ -40,15 +40,15 @@ Page(BasePage({
     this.destroyed = false;
     this.chartMinutes = 120;
     this.history = [];
+    this.chartWidgets = [];
   },
   build() {
     this.heading = label(layout.heading, 32, 25, MUTED, "LIBRE MONITOR");
     this.value = label(layout.value, 100, 84, WHITE, "--");
     this.units = label(layout.units, 34, 23, MUTED, "mg/dL");
     this.trend = label(layout.trend, 45, 36, WHITE, "·");
-    this.chart = hmUI.createWidget(hmUI.widget.CANVAS, {
-      x: Math.round((WIDTH - 260) / 2), y: layout.chart, w: 260, h: 92,
-    });
+    // Use native Zepp widgets instead of CANVAS, which rendered blank on Active 2.
+    this.chartOriginX = Math.round((WIDTH - 260) / 2);
     this.chartCaption = label(layout.chart - 25, 23, 17, MUTED, "LAST 2 HOURS");
     this.status = label(layout.status, 27, 16, MUTED, "Connecting to LibreLinkUp...");
     this.refresh = hmUI.createWidget(hmUI.widget.BUTTON, {
@@ -84,6 +84,7 @@ Page(BasePage({
       this.refreshTimer = null;
     }
     this.stopWatchdog();
+    this.clearChartWidgets();
     this.requestSequence += 1;
   },
   stopWatchdog() {
@@ -102,25 +103,59 @@ Page(BasePage({
     this.trend.setProperty(hmUI.prop.TEXT, "·");
     this.status.setProperty(hmUI.prop.TEXT, String(message).slice(0, 58));
   },
+  clearChartWidgets() {
+    for (const widget of this.chartWidgets) hmUI.deleteWidget(widget);
+    this.chartWidgets = [];
+  },
+  addChartWidget(type, options) {
+    this.chartWidgets.push(hmUI.createWidget(type, options));
+  },
   drawChart() {
-    if (!this.chart) return;
     const width = 260, height = 92;
-    this.chart.clear({ x: 0, y: 0, w: width, h: height });
     const graph = chartSegments(this.history, this.chartMinutes, width, height);
+    this.clearChartWidgets();
     this.chartCaption.setProperty(hmUI.prop.TEXT, `LAST ${this.chartMinutes === 60 ? "1 HOUR" : "2 HOURS"} · ${graph.count} PTS`);
-    this.chart.setPaint({ color: 0x436078, line_width: 1 });
-    this.chart.drawLine({ x1: 0, y1: height - 1, x2: width - 1, y2: height - 1, color: 0x436078 });
-    this.chart.drawLine({ x1: 0, y1: 0, x2: 0, y2: height - 1, color: 0x436078 });
-    this.chart.setPaint({ color: GREEN, line_width: 2 });
-    for (const line of graph.lines) this.chart.drawLine({ ...line, color: GREEN });
-    // Abbott history may contain only one observation every 15 minutes.
-    // Always draw each actual point, including isolated samples.
+    const ox = this.chartOriginX;
+    const oy = layout.chart;
+    const axisColor = 0x436078;
+    this.addChartWidget(hmUI.widget.FILL_RECT, {
+      x: ox, y: oy + height - 1, w: width, h: 1, color: axisColor,
+    });
+    this.addChartWidget(hmUI.widget.FILL_RECT, {
+      x: ox, y: oy, w: 1, h: height, color: axisColor,
+    });
+    // Each continuous pair is drawn independently; gaps remain visible.
+    // POLYLINE takes y values relative to the BOTTOM of its viewport.
+    for (const line of graph.lines) {
+      const lineWidget = hmUI.createWidget(hmUI.widget.GRADKIENT_POLYLINE, {
+        x: ox, y: oy, w: width, h: height,
+        line_color: GREEN, line_width: 2,
+      });
+      this.chartWidgets.push(lineWidget);
+      lineWidget.addLine({
+        data: [
+          { x: line.x1, y: height - 1 - line.y1 },
+          { x: line.x2, y: height - 1 - line.y2 },
+        ],
+        count: 2,
+      });
+    }
+    // Draw individual real measurements with standard Zepp CIRCLE widgets.
+    // Larger markers make sparse 15-minute history visible on the watch.
     for (const dot of graph.dots) {
-      this.chart.drawCircle({ center_x: dot.x, center_y: dot.y, radius: 2, color: GREEN });
+      this.addChartWidget(hmUI.widget.CIRCLE, {
+        x: ox + dot.x - 3, y: oy + dot.y - 3,
+        w: 7, h: 7, radius: 3, color: GREEN,
+      });
     }
     if (graph.count === 0) {
-      this.chart.drawText({ x: 68, y: 29, text: "NO HISTORY", text_size: 18, color: MUTED });
+      this.addChartWidget(hmUI.widget.TEXT, {
+        x: ox + 35, y: oy + 22, w: 190, h: 40,
+        text: "NO HISTORY", text_size: 18, color: MUTED,
+        align_h: hmUI.align.CENTER_H,
+      });
     }
+    hmUI.redraw();
   },
   loadReading() {
     if (this.requestInFlight || this.destroyed) return;
