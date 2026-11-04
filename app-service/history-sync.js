@@ -22,6 +22,10 @@ AppService(BasePage({
     const now = timeSensor.getTime();
     if (this.lastAttempt && now - this.lastAttempt < SYNC_INTERVAL_MS - 20_000) return;
 
+    if (typeof this.request !== "function") {
+      console.log("[LibreMonitor] BG_BRIDGE_NOT_AVAILABLE");
+      return;
+    }
     this.lastAttempt = now;
     this.inFlight = true;
     this.request({ method: "BACKGROUND_SYNC" })
