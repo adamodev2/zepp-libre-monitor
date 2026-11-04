@@ -42,9 +42,8 @@ export function chartSegments(points, minutes, width, height) {
     const previousPoint = i > 0 ? valid[i - 1] : null;
     const gapMinutes = previousPoint ? previousPoint.ageMinutes - valid[i].ageMinutes : 0;
     const isLatest = i === valid.length - 1 && valid[i].ageMinutes <= 15;
-    // LibreLinkUp graph history can lag the separately fetched latest reading.
-    // Bridge only the latest gap, up to 30 minutes, and render it as a dashed
-    // connector so missing intermediate measurements remain visually obvious.
+    // The graph API can lag the separately supplied current glucose reading.
+    // Indicate a 21-30 minute tail gap with a dashed connector, not fake samples.
     if (previousPoint && isLatest && gapMinutes > MAX_CONNECT_GAP_MINUTES) {
       tailGapMinutes = gapMinutes;
     }
@@ -55,9 +54,23 @@ export function chartSegments(points, minutes, width, height) {
 
     if (previousPoint && !connected) {
       if (chain.length > 1) segments.push(chain);
+      chain = [];
+    }
+    chain.push(current);
+    if (connected) {
+      const previous = dots[i - 1];
+      if (previous.x !== current.x || previous.y !== current.y) {
+        lines.push({
+          x1: previous.x, y1: previous.y, x2: current.x, y2: current.y,
+          dashed: isTailBridge,
+        });
+      }
+    }
+  }
+
+  if (chain.length > 1) segments.push(chain);
   return { lines, segments, dots, count: valid.length, min, max, tailGapMinutes };
 }
-
 
 // Rasterize connected graph segments in the same top-left coordinate system
 // used by Zepp CIRCLE widgets. This avoids device-specific polyline offsets.
