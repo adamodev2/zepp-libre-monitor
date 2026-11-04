@@ -109,4 +109,4 @@ The native GRADKIENT_POLYLINE widget uses local bottom-origin coordinates, while
 
 ## Latest-point chart gap
 
-The current LibreLinkUp reading may be newer than the history returned by the graph endpoint. If the last two real observations are separated by 21–30 minutes, the chart connects only that final pair with a dashed line and displays `GAP Nm`. This is a visual connector, not reconstructed readings. For gaps longer than 30 minutes the dot remains separate and the label still reports the gap. Other historical gaps greater than 20 minutes remain disconnected. This UI change requires real-watch verification.
+The current LibreLinkUp reading may be newer than the history returned by the graph endpoint. Whenever two real observations are separated by 21–30 minutes, the chart shows a dashed connector, even after newer measurements move that gap into the historical trace. `GAP Nm` reports the largest visible gap over 20 minutes. A dashed connector does not represent reconstructed readings. Gaps longer than 30 minutes remain disconnected; missing glucose measurements are never fabricated. This UI change requires real-watch verification.
