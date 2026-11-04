@@ -4,7 +4,7 @@ import { parseFactoryTimestamp } from "./timestamps.js";
 const ALLOWED_REGIONS = ["", "eu", "us", "ap", "au", "ca", "de", "fr", "jp", "ru"];
 const SESSION_MAX_AGE_MS = 45 * 60_000;
 const HISTORY_REFRESH_MS = 5 * 60_000;
-const HISTORY_WINDOW_MS = 2 * 60 * 60_000;
+const HISTORY_WINDOW_MS = 6 * 60 * 60_000;
 const headers = {
   "Content-Type": "application/json",
   Accept: "application/json",
@@ -99,7 +99,7 @@ export function parseHistory(graphData, now = Date.now()) {
     const minute = Math.floor(timestamp / 60_000);
     dedup[minute] = { timestamp, value: Math.round(value) };
   }
-  return Object.keys(dedup).map((key) => dedup[key]).sort((a, b) => a.timestamp - b.timestamp).slice(-121);
+  return Object.keys(dedup).map((key) => dedup[key]).sort((a, b) => a.timestamp - b.timestamp).slice(-361);
 }
 
 function combineHistory(graphPoints, current, patientId, now) {
@@ -117,7 +117,7 @@ function combineHistory(graphPoints, current, patientId, now) {
     }
   }
   const result = Object.keys(dedup).map((key) => dedup[key])
-    .sort((a, b) => a.timestamp - b.timestamp).slice(-121);
+    .sort((a, b) => a.timestamp - b.timestamp).slice(-361);
   liveSamples = liveSamples.filter((point) => point.timestamp >= now - HISTORY_WINDOW_MS);
   return result;
 }
