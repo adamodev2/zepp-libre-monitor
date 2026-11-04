@@ -48,6 +48,8 @@ npm run preview
 3. In **Zepp > your watch > Developer Mode**, select **Scan** and scan the freshly generated QR code to install Libre Monitor.
 4. Find **Libre Monitor** in the watch's apps list and open it.
 
+**After merge:** once both PR #1 and PR #5 have been merged, use `git switch main` instead of the feature branch above. Until then, use this branch for BG testing.
+
 You may need to sign in to the Zepp developer platform using `npm run zepp:login`. Browser-based login from Codespaces is not guaranteed; if it fails, clone the repo locally, run `npm install`, `npm run zepp:login` and `npm run preview` on your computer.
 
 **Important:** A CI-generated `.zab` package is not an Android APK. It cannot be installed by tapping the file on your phone. A QR preview build is for private testing, not App Store distribution. See the [Zepp CLI documentation](https://docs.zepp.com/docs/guides/tools/cli/).
