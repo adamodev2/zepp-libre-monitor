@@ -48,10 +48,12 @@ export function saveStoredHistory(storage, patientKey, points, now = Date.now())
   return normalized;
 }
 
-export function readBackgroundSyncAgeMinutes(storage, now = Date.now()) {
-  if (!storage) return null;
+export function readBackgroundSyncAgeMinutes(storage, accountKey, now = Date.now()) {
+  if (!storage || !accountKey) return null;
   try {
-    const timestamp = Number(storage.getItem(BACKGROUND_SYNC_KEY));
+    const saved = JSON.parse(storage.getItem(BACKGROUND_SYNC_KEY) || "null");
+    if (saved?.accountKey !== accountKey) return null;
+    const timestamp = Number(saved.timestamp);
     if (!Number.isFinite(timestamp) || timestamp <= 0 || timestamp > now + 60_000) return null;
     return Math.floor(Math.max(0, now - timestamp) / 60_000);
   } catch (_) {
@@ -59,10 +61,10 @@ export function readBackgroundSyncAgeMinutes(storage, now = Date.now()) {
   }
 }
 
-export function markBackgroundSync(storage, now = Date.now()) {
-  if (!storage) return;
+export function markBackgroundSync(storage, accountKey, now = Date.now()) {
+  if (!storage || !accountKey) return;
   try {
-    storage.setItem(BACKGROUND_SYNC_KEY, String(now));
+    storage.setItem(BACKGROUND_SYNC_KEY, JSON.stringify({ accountKey, timestamp: now }));
   } catch (_) {
     // Do not propagate metadata persistence failures.
   }
