@@ -19,7 +19,8 @@ The app displays **real glucose readings from FreeStyle Libre via LibreLinkUp** 
 | Solid connections up to 20-minute gaps, dashed connections for 21–30 minutes, disconnection above 30 minutes | Implemented; missing measurements are never recreated |
 | Account settings and diagnostic events in Zepp | Implemented |
 | In-memory login session reuse (up to 45 minutes) | Implemented; may re-authenticate when the phone service restarts |
-| Experimental background service and persisted 6-hour history | **Implemented as opt-in; successful background fetch not yet confirmed on Active 2** |\n| Live glucose on a watch face / always-on display | **Not implemented** |
+| Experimental background service and persisted 6-hour history | **Implemented as opt-in; successful background fetch not yet confirmed on Active 2** |
+| Live glucose on a watch face / always-on display | **Not implemented** |
 | Glucose alarms, insulin calculations or treatment advice | **Not implemented** |
 
 ## What you need
@@ -70,9 +71,12 @@ Settings also provide **Diagnostics (select and copy text)**, **Clear diagnostic
 - **`LibreLinkUp · Xm ago`:** age of the **current reading**, measured using the phone clock. Readings older than **15 minutes** are rejected.
 - **`2h / 6h`:** switch the chart time window. It displays at most one real recorded observation per five-minute bucket, not a prediction or interpolated value.
 - **`GAP Nm`:** largest interval of over 20 minutes between adjacent displayed observations. A **dashed line** connects actual points across 21–30 minutes; a longer break stays unconnected.
-- **`Refresh`:** request a new value manually.\n- **`BG OFF / BG ON`:** opt into or stop experimental background collection. Background success must be verified separately.
+- **`Refresh`:** request a new value manually.
+- **`BG OFF / BG ON`:** opt into or stop experimental background collection. Background success must be verified separately.
 
-The **current glucose** comes from LibreLinkUp's connection measurement. The **history** comes from a separate `/llu/connections/{patientId}/graph` request and from real observations collected while the app is running. Abbott may return sparse or delayed history even when the latest glucose is fresh. The chart cannot reconstruct readings that were never received.\n\n## Optional background sync and saved history (experimental)
+The **current glucose** comes from LibreLinkUp's connection measurement. The **history** comes from a separate `/llu/connections/{patientId}/graph` request and from real observations collected while the app is running. Abbott may return sparse or delayed history even when the latest glucose is fresh. The chart cannot reconstruct readings that were never received.
+
+## Optional background sync and saved history (experimental)
 
 This section applies to the **`feat/background-glucose-history`** branch. Background collection is **OFF by default** and is **not guaranteed to run** simply because permission was granted.
 
@@ -96,7 +100,8 @@ Libre sensor -> official Libre cloud / LibreLinkUp
               -> Amazfit Active 2 app screen
 ```
 
-- Current glucose: immediately on opening, then about **once per minute** while the foreground app remains open.\n- When enabled and supported, background sync attempts another reading approximately **every five minutes** after the foreground app is closed; actual delivery is unverified.
+- Current glucose: immediately on opening, then about **once per minute** while the foreground app remains open.
+- When enabled and supported, background sync attempts another reading approximately **every five minutes** after the foreground app is closed; actual delivery is unverified.
 - Abbott history: cached for up to **five minutes** between graph requests.
 - Login: ephemeral token in memory, reused for up to **45 minutes**, with one retry after an HTTP 401.
 - A pending watch request times out after approximately **20 seconds**; failed fetches can retry on the next tick.
@@ -122,7 +127,8 @@ If the phone service fails to start, look for `[LibreMonitor] SIDE_SERVICE_INITI
 
 - The LibreLinkUp integration uses **unofficial/undocumented endpoints**. Abbott can change behavior, require new terms, restrict accounts or stop responses without notice. Regional redirects are handled, but country/account behavior is not guaranteed.
 - **Email and password are held in Zepp Settings Storage on the phone. Secure encryption has not been verified.** Use a dedicated follower account, protect your phone, and avoid sharing screenshots or debug logs containing secrets.
-- The app and its chart show **personal health data**; do not install it on an untrusted/shared device.\n- In the experimental background branch, recent measurements and their timestamps are also saved in Zepp Settings Storage to preserve the chart between Side Service restarts.
+- The app and its chart show **personal health data**; do not install it on an untrusted/shared device.
+- In the experimental background branch, recent measurements and their timestamps are also saved in Zepp Settings Storage to preserve the chart between Side Service restarts.
 - A green CI build proves syntax/tests and package generation only; it does **not** prove live Abbott connectivity, display behavior on every watch or reliability in the background.
 - The app must not replace official Libre alarms, even if you see a fresh glucose number.
 - Do not assume compatibility with Libre 3, Medtronic, other sensors, iOS or non-Active-2 watches without additional device/account testing.
