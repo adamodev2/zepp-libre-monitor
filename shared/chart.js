@@ -4,7 +4,7 @@ const MAX_DASHED_GAP_MINUTES = 30;
 
 export function chartSegments(points, minutes, width, height) {
   if (!Array.isArray(points) || (minutes !== 120 && minutes !== 360)) {
-    return { lines: [], segments: [], dots: [], count: 0, min: 70, max: 180 };
+    return { lines: [], segments: [], dots: [], count: 0, min: 70, max: 180, maxGapMinutes: 0 };
   }
 
   // Retain the newest real measurement in each five-minute age bucket.
