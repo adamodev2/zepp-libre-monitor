@@ -19,7 +19,8 @@ The app displays **real glucose readings from FreeStyle Libre via LibreLinkUp** 
 | Solid connections up to 20-minute gaps, dashed connections for 21–30 minutes, disconnection above 30 minutes | Implemented; missing measurements are never recreated |
 | Account settings and diagnostic events in Zepp | Implemented |
 | In-memory login session reuse (up to 45 minutes) | Implemented; may re-authenticate when the phone service restarts |
-| Background collection after closing the foreground app | **Not included in this MVP branch** |\n| Live glucose on a watch face / always-on display | **Not implemented** |
+| Background collection after closing the foreground app | **Not included in this MVP branch** |
+| Live glucose on a watch face / always-on display | **Not implemented** |
 | Glucose alarms, insulin calculations or treatment advice | **Not implemented** |
 
 ## What you need
