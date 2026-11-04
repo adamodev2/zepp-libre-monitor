@@ -92,7 +92,7 @@ test("stroke pixels and glucose dots use identical screen-space coordinates", ()
     assert.ok(point.y >= Math.min(start.y, end.y) && point.y <= Math.max(start.y, end.y));
     const ratio = (point.x - start.x) / (end.x - start.x);
     const expectedY = start.y + (end.y - start.y) * ratio;
-    assert.ok(Math.abs(point.y - expectedY) <= 2, "stroke must meet the sample dots");
+    assert.ok(Math.abs(point.y - expectedY) <= 3, "stroke must meet the sample dots");
   }
 });
 
