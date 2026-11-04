@@ -52,3 +52,32 @@ export function chartSegments(points, minutes, width, height) {
   if (chain.length > 1) segments.push(chain);
   return { lines, segments, dots, count: valid.length, min, max };
 }
+
+
+// Rasterize connected graph segments in the same top-left coordinate system
+// used by Zepp CIRCLE widgets. This avoids device-specific polyline offsets.
+// The budget limits the number of widgets used for the trace.
+export function chartStrokePixels(lines, budget = 160) {
+  if (!Array.isArray(lines) || !lines.length || budget < 2) return [];
+  let total = 0;
+  for (const line of lines) {
+    total += Math.max(Math.abs(line.x2 - line.x1), Math.abs(line.y2 - line.y1));
+  }
+  const pixelStep = Math.max(2, Math.ceil(total / (budget - lines.length * 2)));
+  const pixels = [];
+  const seen = {};
+  for (const line of lines) {
+    const length = Math.max(Math.abs(line.x2 - line.x1), Math.abs(line.y2 - line.y1));
+    const steps = Math.max(1, Math.ceil(length / pixelStep));
+    for (let i = 0; i <= steps; i++) {
+      const x = Math.round(line.x1 + ((line.x2 - line.x1) * i) / steps);
+      const y = Math.round(line.y1 + ((line.y2 - line.y1) * i) / steps);
+      const key = x + ":" + y;
+      if (!seen[key]) {
+        pixels.push({ x, y });
+        seen[key] = true;
+      }
+    }
+  }
+  return pixels;
+}
