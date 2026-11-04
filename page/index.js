@@ -114,7 +114,7 @@ Page(BasePage({
     const width = 260, height = 92;
     const graph = chartSegments(this.history, this.chartMinutes, width, height);
     this.clearChartWidgets();
-    const gapLabel = graph.tailGapMinutes ? ` · GAP ${Math.round(graph.tailGapMinutes)}m` : "";
+    const gapLabel = graph.maxGapMinutes ? ` · GAP ${Math.round(graph.maxGapMinutes)}m` : "";
     this.chartCaption.setProperty(hmUI.prop.TEXT, `LAST ${this.chartMinutes === 120 ? "2 HOURS" : "6 HOURS"} · ${graph.count} PTS${gapLabel}`);
     const ox = this.chartOriginX;
     const oy = layout.chart;
@@ -134,7 +134,7 @@ Page(BasePage({
         w: 3, h: 3, color: GREEN,
       });
     }
-    // A dashed latest-point connector signals a genuine gap in measured data.
+    // Dashed connectors mark 21-30 minute gaps anywhere in the history.
     const bridgePixels = chartStrokePixels(graph.lines.filter((line) => line.dashed), 25);
     for (let i = 0; i < bridgePixels.length; i++) {
       if (i % 3 === 2) continue;
