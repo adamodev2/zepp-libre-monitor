@@ -2,6 +2,8 @@ import * as hmUI from "@zos/ui";
 import { getDeviceInfo, SCREEN_SHAPE_SQUARE } from "@zos/device";
 import * as timer from "@zos/timer";
 import { BasePage } from "@zeppos/zml/base-page";
+import { queryPermission, requestPermission } from "@zos/app";
+import { start, stop, getAllAppServices } from "@zos/app-service";
 import { normalizeReading, trendArrow, glucoseBand } from "../shared/glucose";
 import { chartSegments, chartStrokePixels } from "../shared/chart";
 
@@ -20,6 +22,7 @@ const AMBER = 0xffc247;
 const REFRESH_INTERVAL_MS = 60_000;
 const MAX_READING_AGE_MS = 15 * 60_000;
 const REQUEST_TIMEOUT_MS = 20_000;
+const BACKGROUND_SERVICE_PATH = "app-service/history-sync";
 
 function label(y, height, size, color, text) {
   return hmUI.createWidget(hmUI.widget.TEXT, {
@@ -41,6 +44,9 @@ Page(BasePage({
     this.chartMinutes = 120;
     this.history = [];
     this.chartWidgets = [];
+    this.historyMeta = null;
+    this.backgroundEnabled = false;
+    this.backgroundPending = false;
   },
   build() {
     this.heading = label(layout.heading, 32, 25, MUTED, "LIBRE MONITOR");
@@ -50,23 +56,36 @@ Page(BasePage({
     // Use native Zepp widgets instead of CANVAS, which rendered blank on Active 2.
     this.chartOriginX = Math.round((WIDTH - 260) / 2);
     this.chartCaption = label(layout.chart - 25, 23, 17, MUTED, "LAST 2 HOURS");
-    this.status = label(layout.status, 27, 16, MUTED, "Connecting to LibreLinkUp...");
-    this.refresh = hmUI.createWidget(hmUI.widget.BUTTON, {
-      x: Math.round(WIDTH / 2) + 4, y: layout.button, w: 108, h: 41,
-      text: "Refresh", text_size: 17,
-      color: WHITE, normal_color: 0x263442,
-      press_color: 0x405163, radius: 20,
-      click_func: () => this.loadReading(),
-    });
+    this.historyStatus = label(layout.chart + 90, 18, 14, MUTED, "ABBOTT GRAPH: CHECKING");
+    this.status = label(layout.status + 5, 23, 15, MUTED, "Connecting to LibreLinkUp...");
+    this.refreshBackgroundState();
+    const controlWidth = 82;
+    const controlGap = 7;
+    const controlsX = Math.round((WIDTH - 3 * controlWidth - 2 * controlGap) / 2);
     this.toggleChart = hmUI.createWidget(hmUI.widget.BUTTON, {
-      x: Math.round(WIDTH / 2) - 112, y: layout.button, w: 108, h: 41,
-      text: "2h / 6h", text_size: 16,
+      x: controlsX, y: layout.button, w: controlWidth, h: 41,
+      text: "2h / 6h", text_size: 15,
       color: WHITE, normal_color: 0x263442,
       press_color: 0x405163, radius: 18,
       click_func: () => {
         this.chartMinutes = this.chartMinutes === 120 ? 360 : 120;
         this.drawChart();
       },
+    });
+    this.refresh = hmUI.createWidget(hmUI.widget.BUTTON, {
+      x: controlsX + controlWidth + controlGap, y: layout.button, w: controlWidth, h: 41,
+      text: "Refresh", text_size: 15,
+      color: WHITE, normal_color: 0x263442,
+      press_color: 0x405163, radius: 18,
+      click_func: () => this.loadReading(),
+    });
+    this.backgroundButton = hmUI.createWidget(hmUI.widget.BUTTON, {
+      x: controlsX + 2 * (controlWidth + controlGap),
+      y: layout.button, w: controlWidth, h: 41,
+      text: this.backgroundEnabled ? "BG ON" : "BG OFF", text_size: 15,
+      color: WHITE, normal_color: 0x263442,
+      press_color: 0x405163, radius: 18,
+      click_func: () => this.toggleBackground(),
     });
     this.drawChart();
     this.loadReading();
@@ -102,6 +121,102 @@ Page(BasePage({
     this.value.setProperty(hmUI.prop.TEXT, "--");
     this.trend.setProperty(hmUI.prop.TEXT, "·");
     this.status.setProperty(hmUI.prop.TEXT, String(message).slice(0, 58));
+  },
+  refreshBackgroundState() {
+    try {
+      const services = getAllAppServices();
+      this.backgroundEnabled = Array.isArray(services) && services.includes(BACKGROUND_SERVICE_PATH);
+    } catch (_) {
+      this.backgroundEnabled = false;
+    }
+  },
+  setBackgroundState(enabled) {
+    this.backgroundPending = false;
+    this.backgroundEnabled = enabled;
+    if (this.backgroundButton) {
+      this.backgroundButton.setProperty(hmUI.prop.TEXT, enabled ? "BG ON" : "BG OFF");
+    }
+    this.updateHistoryStatus();
+  },
+  toggleBackground() {
+    if (this.backgroundPending) return;
+    this.backgroundPending = true;
+    if (this.backgroundEnabled) {
+      const result = stop({
+        file: BACKGROUND_SERVICE_PATH,
+        complete_func: (event) => {
+          this.setBackgroundState(!event?.result);
+          if (!event?.result) {
+            this.status.setProperty(hmUI.prop.TEXT, "Could not stop background service");
+          }
+        },
+      });
+      if (result !== 0) {
+        this.setBackgroundState(true);
+        this.status.setProperty(hmUI.prop.TEXT, `Background stop error: ${result}`);
+      }
+      return;
+    }
+
+    const startService = () => {
+      try {
+        const result = start({
+          file: BACKGROUND_SERVICE_PATH,
+          complete_func: (event) => {
+            this.setBackgroundState(Boolean(event?.result));
+            if (!event?.result) {
+              this.status.setProperty(hmUI.prop.TEXT, "BG unavailable on this installation");
+            }
+          },
+        });
+        if (result !== 0) {
+          this.setBackgroundState(false);
+          this.status.setProperty(hmUI.prop.TEXT, `BG unavailable (code ${result})`);
+        }
+      } catch (_) {
+        this.setBackgroundState(false);
+        this.status.setProperty(hmUI.prop.TEXT, "Background service not supported");
+      }
+    };
+
+    try {
+      const granted = queryPermission({ permissions: ["device:os.bg_service"] });
+      if (Array.isArray(granted) && granted[0] === 2) {
+        startService();
+        return;
+      }
+      const result = requestPermission({
+        permissions: ["device:os.bg_service"],
+        callback: (permissions) => {
+          if (Array.isArray(permissions) && permissions[0] === 2) {
+            startService();
+          } else {
+            this.setBackgroundState(false);
+            this.status.setProperty(hmUI.prop.TEXT, "BG permission denied or unavailable");
+          }
+        },
+      });
+      if (result === 2) startService();
+      else if (result === 1) {
+        this.setBackgroundState(false);
+        this.status.setProperty(hmUI.prop.TEXT, "BG permission not available");
+      }
+    } catch (_) {
+      this.setBackgroundState(false);
+      this.status.setProperty(hmUI.prop.TEXT, "BG permission not supported");
+    }
+  },
+  updateHistoryStatus() {
+    if (!this.historyStatus) return;
+    const graphAge = this.historyMeta?.graphAgeMinutes;
+    const bgAge = this.historyMeta?.backgroundSyncAgeMinutes;
+    const graphText = Number.isFinite(graphAge)
+      ? `ABBOTT GRAPH ${Math.round(graphAge)}m OLD`
+      : "ABBOTT GRAPH UNAVAILABLE";
+    const bgText = this.backgroundEnabled
+      ? ` · BG ${Number.isFinite(bgAge) ? Math.round(bgAge) + "m" : "WAIT"}`
+      : "";
+    this.historyStatus.setProperty(hmUI.prop.TEXT, graphText + bgText);
   },
   clearChartWidgets() {
     for (const widget of this.chartWidgets) hmUI.deleteWidget(widget);
@@ -192,7 +307,9 @@ Page(BasePage({
         const ageMinutes = Math.floor(ageMs / 60_000);
         if (ageMs < -60_000 || ageMs > MAX_READING_AGE_MS) throw new Error("Reading unavailable or older than 15 min");
         this.history = Array.isArray(response.reading.history) ? response.reading.history : [];
+        this.historyMeta = response.reading.historyMeta || null;
         this.drawChart();
+        this.updateHistoryStatus();
         const band = glucoseBand(reading.value);
         const color = band === "low" ? RED : band === "high" ? AMBER : GREEN;
         this.value.setProperty(hmUI.prop.TEXT, String(reading.value));
