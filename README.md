@@ -146,7 +146,7 @@ GitHub Actions **Zepp OS CI** checks JavaScript and the manifest, runs mocked Li
 The `feat/active2-readable-layout` branch changes **only the watch display layout** (no LibreLinkUp, account, or data-processing changes):
 
 - Main glucose value increased from **84 to 92 px** (approximately 10% larger).
-- Trend arrow moved to the **right of the glucose number** on the same row; it has its own 52 px font.
+- Trend arrow moved to the **right of the glucose number**, with a **15 px gap** on the same row; it has its own 52 px font.
 - Smaller typography increased for readability: caption 17 → 21 px, status 16 → 19 px, units 23 → 26 px, buttons 16–17 → 19 px, heading 25 → 27 px.
 - The 2h/6h chart is slightly taller; controls are positioned further inside the round display.
 - Screen layout is separately defined and tested for Active 2 round (466 × 466) and square (390 × 450) variants.
