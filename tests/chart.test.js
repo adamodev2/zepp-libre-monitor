@@ -117,3 +117,56 @@ test("stroke renderer limits pixel widget count on dense charts", () => {
   }));
   assert.ok(chartStrokePixels(lines, 160).length <= 160);
 });
+
+test("latest real glucose point bridges a moderate 25-minute graph lag", () => {
+  const graph = chartSegments([
+    { ageMinutes: 55, value: 117 },
+    { ageMinutes: 30, value: 119 },
+    { ageMinutes: 25, value: 121 },
+    { ageMinutes: 0, value: 126 },
+  ], 120, 260, 92);
+  assert.equal(graph.tailGapMinutes, 25);
+  assert.equal(graph.dots.length, 4);
+  assert.equal(graph.lines.length, 2);
+  assert.equal(graph.lines[1].dashed, true);
+  const latestLine = graph.lines[1];
+  assert.deepEqual(
+    { x: latestLine.x2, y: latestLine.y2 },
+    graph.dots[graph.dots.length - 1],
+    "the connector must terminate exactly at the current glucose marker",
+  );
+  assert.ok(chartStrokePixels([latestLine], 25).length > 0);
+});
+
+test("an actual long gap never becomes a fabricated solid glucose trace", () => {
+  const graph = chartSegments([
+    { ageMinutes: 55, value: 95 },
+    { ageMinutes: 40, value: 105 },
+    { ageMinutes: 2, value: 120 },
+  ], 120, 260, 92);
+  assert.equal(graph.tailGapMinutes, 38);
+  assert.equal(graph.lines.length, 1);
+  assert.equal(graph.lines[0].dashed, false);
+  assert.equal(graph.dots.length, 3);
+});
+
+test("bridging is restricted to a fresh final sample, not a historic gap", () => {
+  const graph = chartSegments([
+    { ageMinutes: 115, value: 95 },
+    { ageMinutes: 90, value: 105 },
+    { ageMinutes: 75, value: 115 },
+    { ageMinutes: 60, value: 110 },
+  ], 120, 260, 92);
+  assert.equal(graph.tailGapMinutes, 0);
+  assert.equal(graph.lines.length, 2);
+  assert.ok(graph.lines.every((line) => !line.dashed));
+});
+
+test("late current measurement is not connected if its freshness exceeds fifteen minutes", () => {
+  const graph = chartSegments([
+    { ageMinutes: 51, value: 95 },
+    { ageMinutes: 20, value: 110 },
+  ], 120, 260, 92);
+  assert.equal(graph.tailGapMinutes, 0);
+  assert.equal(graph.lines.length, 0);
+});
