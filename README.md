@@ -48,7 +48,7 @@ If you already have a Codespace for this repository:
 
 ```bash
 git fetch origin
-git switch feat/zepp-glucose-app-mvp
+git switch feat/active2-readable-layout
 git pull
 npm install --no-audit --no-fund
 npm run zepp:login
@@ -140,6 +140,18 @@ npm run preview
 GitHub Actions **Zepp OS CI** checks JavaScript and the manifest, runs mocked LibreLinkUp tests and builds a `.zab` package. CI artifacts can be found under **Actions > Zepp OS CI > Artifacts**. Tests use fabricated mock readings; live device display uses real LibreLinkUp readings, **not demo values**.
 
 `app.json` tracks the stable base version (`0.1.0` in this branch). CI development builds can add a unique development suffix. Actual stable release/versioning and Zepp Store distribution are separate tasks.
+
+## Readable Active 2 screen layout (experimental branch)
+
+The `feat/active2-readable-layout` branch changes **only the watch display layout** (no LibreLinkUp, account, or data-processing changes):
+
+- Main glucose value increased from **84 to 92 px** (approximately 10% larger).
+- Trend arrow moved to the **right of the glucose number** on the same row; it has its own 52 px font.
+- Smaller typography increased for readability: caption 17 → 21 px, status 16 → 19 px, units 23 → 26 px, buttons 16–17 → 19 px, heading 25 → 27 px.
+- The 2h/6h chart is slightly taller; controls are positioned further inside the round display.
+- Screen layout is separately defined and tested for Active 2 round (466 × 466) and square (390 × 450) variants.
+
+**Physical-device check required:** Confirm the complete three-digit glucose number, arrow, status and both buttons are visible without clipping on your actual Active 2. This branch is intended to merge into the MVP branch first, then follow the MVP into `main` after review.
 
 ## Project background and sharing
 
