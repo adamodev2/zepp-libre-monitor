@@ -31,7 +31,7 @@ This is a **work in progress under active development**, not a finished or medic
 | Solid connections up to 20-minute gaps, dashed connections for 21–30 minutes, disconnection above 30 minutes | Implemented; missing measurements are never recreated |
 | Account settings and diagnostic events in Zepp | Implemented |
 | In-memory login session reuse (up to 45 minutes) | Implemented; may re-authenticate when the phone service restarts |
-| Background collection after closing the foreground app | **Not included in this MVP branch** |
+| Experimental background service and persisted 6-hour history | **Implemented as opt-in; successful background fetch not yet confirmed on Active 2** |
 | Live glucose on a watch face / always-on display | **Not implemented** |
 | Glucose alarms, insulin calculations or treatment advice | **Not implemented** |
 
@@ -48,7 +48,7 @@ If you already have a Codespace for this repository:
 
 ```bash
 git fetch origin
-git switch feat/zepp-glucose-app-mvp
+git switch feat/background-glucose-history
 git pull
 npm install --no-audit --no-fund
 npm run zepp:login
@@ -60,7 +60,7 @@ npm run preview
 3. In **Zepp > your watch > Developer Mode**, select **Scan** and scan the freshly generated QR code to install Libre Monitor.
 4. Find **Libre Monitor** in the watch's apps list and open it.
 
-**After merge:** use `git switch main` instead of `git switch feat/zepp-glucose-app-mvp` to install the released MVP from the default branch.
+**After merge:** once both PR #1 and PR #5 have been merged, use `git switch main` instead of the feature branch above. Until then, use this branch for BG testing.
 
 You may need to sign in to the Zepp developer platform using `npm run zepp:login`. Browser-based login from Codespaces is not guaranteed; if it fails, clone the repo locally, run `npm install`, `npm run zepp:login` and `npm run preview` on your computer.
 
@@ -86,8 +86,25 @@ Settings also provide **Diagnostics (select and copy text)**, **Clear diagnostic
 - **`2h / 6h`:** switch the chart time window. It displays at most one real recorded observation per five-minute bucket, not a prediction or interpolated value.
 - **`GAP Nm`:** largest interval of over 20 minutes between adjacent displayed observations. A **dashed line** connects actual points across 21–30 minutes; a longer break stays unconnected.
 - **`Refresh`:** request a new value manually.
+- **`BG OFF / BG ON`:** opt into or stop experimental background collection. Background success must be verified separately.
 
 The **current glucose** comes from LibreLinkUp's connection measurement. The **history** comes from a separate `/llu/connections/{patientId}/graph` request and from real observations collected while the app is running. Abbott may return sparse or delayed history even when the latest glucose is fresh. The chart cannot reconstruct readings that were never received.
+
+## Optional background sync and saved history (experimental)
+
+This section applies to the **`feat/background-glucose-history`** branch. Background collection is **OFF by default** and is **not guaranteed to run** simply because permission was granted.
+
+- **`ABBOTT GRAPH Xm OLD`** reports the age of Abbott's newest *historical graph* record. This is different from `LibreLinkUp · Xm ago`, which reports the age of the *current glucose measurement*.
+- The Side Service stores up to **six hours of real time-stamped glucose readings** in Zepp Settings Storage, so the history can survive a Side Service restart. Storage contains glucose values and timestamps, not the Abbott token; encryption of this sensitive health information is **not verified**.
+- Tap **`BG OFF`** on the watch and grant permission when prompted to request the optional Zepp OS background App Service. Tap **`BG ON`** to stop it. **`BG ON`** only indicates that the background service was started; it does not prove that a reading was received.
+- If the background App Service and its bridge to the phone actually work, it attempts a glucose update approximately **every five minutes** while the main watch app is closed. When you reopen the app, `BG Xm` shows the age of the **last successful recorded background fetch**; `BG WAIT` means none has yet succeeded.
+- Keep the watch paired, the phone connected to the internet and Zepp permitted to run. Zepp OS may deny or suspend background services for privately installed QR builds, and Android power management may stop the phone-side service. **Background communication has not yet been proven reliable on a real Active 2.** A granted permission alone is not a successful test.
+- An error such as **`BG unavailable`** indicates a Zepp OS permission/install/runtime restriction, not necessarily an Abbott login issue.
+- `BACKGROUND_REQUEST`, `BACKGROUND_SUCCESS`, `BACKGROUND_FAILURE` and `BACKGROUND_STALE` are sanitized diagnostic event codes. Never attach raw Abbott requests or credentials to a report.
+
+**Quick verification:** Enable BG, close Libre Monitor, leave the watch paired for at least 15 minutes, then reopen it. Compare `LibreLinkUp · Xm ago`, `ABBOTT GRAPH Xm OLD` and `BG Xm` / `BG WAIT`. If the BG indicator stays at `WAIT` or does not advance, background fetching is **not confirmed**, regardless of permission status.
+
+
 
 ## Data flow and refresh
 
@@ -97,7 +114,8 @@ Libre sensor -> official Libre cloud / LibreLinkUp
               -> Amazfit Active 2 app screen
 ```
 
-- Current glucose: immediately on opening, then about **once per minute** while the foreground app remains open. Foreground collection **stops after the page is closed**.
+- Current glucose: immediately on opening, then about **once per minute** while the foreground app remains open.
+- When enabled and supported, background sync attempts another reading approximately **every five minutes** after the foreground app is closed; actual delivery is unverified.
 - Abbott history: cached for up to **five minutes** between graph requests.
 - Login: ephemeral token in memory, reused for up to **45 minutes**, with one retry after an HTTP 401.
 - A pending watch request times out after approximately **20 seconds**; failed fetches can retry on the next tick.
@@ -124,6 +142,7 @@ If the phone service fails to start, look for `[LibreMonitor] SIDE_SERVICE_INITI
 - The LibreLinkUp integration uses **unofficial/undocumented endpoints**. Abbott can change behavior, require new terms, restrict accounts or stop responses without notice. Regional redirects are handled, but country/account behavior is not guaranteed.
 - **Email and password are held in Zepp Settings Storage on the phone. Secure encryption has not been verified.** Use a dedicated follower account, protect your phone, and avoid sharing screenshots or debug logs containing secrets.
 - The app and its chart show **personal health data**; do not install it on an untrusted/shared device.
+- In the experimental background branch, recent measurements and their timestamps are also saved in Zepp Settings Storage to preserve the chart between Side Service restarts.
 - A green CI build proves syntax/tests and package generation only; it does **not** prove live Abbott connectivity, display behavior on every watch or reliability in the background.
 - The app must not replace official Libre alarms, even if you see a fresh glucose number.
 - Do not assume compatibility with Libre 3, Medtronic, other sensors, iOS or non-Active-2 watches without additional device/account testing.

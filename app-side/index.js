@@ -1,6 +1,8 @@
 import { BaseSideService } from "@zeppos/zml/base-side";
 import { getGlucose } from "./librelinkup";
 import { addDiagnostic } from "./diagnostics";
+import { markBackgroundSync } from "./history-store";
+import { sha256 } from "./sha256";
 
 function publicError(error) {
   const message = String(error?.message || "");
@@ -22,20 +24,32 @@ AppSideService(BaseSideService({
       res(null, { ok: true, service: "libre-monitor" });
       return;
     }
-    if (req.method !== "GET_GLUCOSE") {
+    const isBackgroundSync = req.method === "BACKGROUND_SYNC";
+    if (req.method !== "GET_GLUCOSE" && !isBackgroundSync) {
       res(null, { error: "Unsupported request" });
       return;
     }
-    addDiagnostic("WATCH_REQUEST");
+    addDiagnostic(isBackgroundSync ? "BACKGROUND_REQUEST" : "WATCH_REQUEST");
     try {
       const email = settings.settingsStorage.getItem("libre_email");
       const password = settings.settingsStorage.getItem("libre_password");
       if (!email || !password) addDiagnostic("CREDENTIALS_MISSING");
-      const reading = await getGlucose(email, password, addDiagnostic);
-      addDiagnostic("REQUEST_FINISHED", "OK");
-      res(null, { reading });
+      const reading = await getGlucose(email, password, addDiagnostic, settings.settingsStorage);
+      if (isBackgroundSync) {
+        if (Number.isFinite(reading.ageMs) && reading.ageMs >= -60_000 && reading.ageMs <= 15 * 60_000) {
+          markBackgroundSync(settings.settingsStorage, sha256(email.trim().toLowerCase()));
+          addDiagnostic("BACKGROUND_SUCCESS");
+          res(null, { ok: true });
+        } else {
+          addDiagnostic("BACKGROUND_STALE");
+          res(null, { ok: false });
+        }
+      } else {
+        addDiagnostic("REQUEST_FINISHED", "OK");
+        res(null, { reading });
+      }
     } catch (error) {
-      addDiagnostic("REQUEST_FINISHED", "ERROR");
+      addDiagnostic(isBackgroundSync ? "BACKGROUND_FAILURE" : "REQUEST_FINISHED", "ERROR");
       // Never expose untrusted error objects, passwords, tokens, or response bodies.
       res(null, { error: publicError(error) });
     }
