@@ -153,6 +153,14 @@ The `feat/active2-readable-layout` branch changes **only the watch display layou
 
 **Physical-device check required:** Confirm the complete three-digit glucose number, arrow, status and both buttons are visible without clipping on your actual Active 2. This branch is intended to merge into the MVP branch first, then follow the MVP into `main` after review.
 
+## Native trend arrow rendering (experimental fix)
+
+On physical Active 2 hardware, the large `↓`, `↘`, `→`, `↗` and `↑` text glyphs can appear as white replacement squares when rendered at the newer 52 px font size. The old trend label was also hardcoded white.
+
+The `fix/trend-arrow-rendering` branch draws the trend with **green, native Zepp OS rectangles**, instead of relying on the installed Unicode font. It keeps the existing 15 px gap beside the glucose number, supports all five LibreLinkUp direction codes, and shows a small neutral dot if the trend is unknown. It redraws the arrow only when the trend changes and deletes its widgets when the app closes.
+
+This is a visual-only change; LibreLinkUp data and medical glucose thresholds are untouched. **Real-watch verification is required**, especially for down and diagonal arrows, after generating a new preview QR.
+
 ## Project background and sharing
 
 This is my personal, **AI-assisted** project, shared for others who may find it useful. I use it myself, make a genuine effort to test and improve it, and continue developing it. **All use is at your own risk**; see [Disclaimer: use at your own risk](#disclaimer-use-at-your-own-risk) for important limitations and liability terms.

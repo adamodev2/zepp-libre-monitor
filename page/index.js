@@ -2,7 +2,8 @@ import * as hmUI from "@zos/ui";
 import { getDeviceInfo, SCREEN_SHAPE_SQUARE } from "@zos/device";
 import * as timer from "@zos/timer";
 import { BasePage } from "@zeppos/zml/base-page";
-import { normalizeReading, trendArrow, glucoseBand } from "../shared/glucose";
+import { normalizeReading, glucoseBand } from "../shared/glucose";
+import { trendArrowPixels } from "../shared/trend-icon";
 import { chartSegments, chartStrokePixels } from "../shared/chart";
 import { createWatchLayout } from "../shared/watch-layout";
 
@@ -42,6 +43,8 @@ Page(BasePage({
     this.chartMinutes = 120;
     this.history = [];
     this.chartWidgets = [];
+    this.trendWidgets = [];
+    this.activeTrend = null;
   },
   build() {
     this.heading = label(layout.heading, MUTED, "LIBRE MONITOR");
@@ -51,10 +54,8 @@ Page(BasePage({
       x: layout.glucose.x, w: layout.glucose.w,
       align_h: hmUI.align.RIGHT,
     });
-    this.trend = label(layout.arrow, WHITE, "·", {
-      x: layout.arrow.x, w: layout.arrow.w,
-      align_h: hmUI.align.LEFT,
-    });
+    // Render the trend as native shapes; large Unicode arrow glyphs can show as squares.
+    this.renderTrend(0);
     this.units = label(layout.units, MUTED, "mg/dL");
     // Chart, labels and controls use the space freed by the old trend row.
     this.chartCaption = label(layout.chartCaption, MUTED, "LAST 2 HOURS");
@@ -95,6 +96,7 @@ Page(BasePage({
     }
     this.stopWatchdog();
     this.clearChartWidgets();
+    this.clearTrendWidgets();
     this.requestSequence += 1;
   },
   stopWatchdog() {
@@ -110,8 +112,35 @@ Page(BasePage({
   },
   showError(message) {
     this.value.setProperty(hmUI.prop.TEXT, "--");
-    this.trend.setProperty(hmUI.prop.TEXT, "·");
+    this.renderTrend(0);
     this.status.setProperty(hmUI.prop.TEXT, String(message).slice(0, 46));
+  },
+  clearTrendWidgets() {
+    for (const widget of this.trendWidgets) hmUI.deleteWidget(widget);
+    this.trendWidgets = [];
+  },
+  renderTrend(trend) {
+    const code = Number(trend);
+    const normalized = Number.isInteger(code) && code >= 1 && code <= 5 ? code : 0;
+    if (this.activeTrend === normalized) return;
+    this.clearTrendWidgets();
+    this.activeTrend = normalized;
+    if (!normalized) {
+      this.trendWidgets.push(hmUI.createWidget(hmUI.widget.CIRCLE, {
+        center_x: layout.arrow.x + Math.round(layout.arrow.w / 2),
+        center_y: layout.arrow.y + Math.round(layout.arrow.h / 2),
+        radius: 4, color: MUTED,
+      }));
+    } else {
+      for (const pixel of trendArrowPixels(normalized, layout.arrow.w, layout.arrow.h)) {
+        this.trendWidgets.push(hmUI.createWidget(hmUI.widget.FILL_RECT, {
+          x: layout.arrow.x + pixel.x - 2,
+          y: layout.arrow.y + pixel.y - 2,
+          w: 5, h: 5, radius: 2, color: GREEN,
+        }));
+      }
+    }
+    hmUI.redraw();
   },
   clearChartWidgets() {
     for (const widget of this.chartWidgets) hmUI.deleteWidget(widget);
@@ -207,7 +236,7 @@ Page(BasePage({
         const color = band === "low" ? RED : band === "high" ? AMBER : GREEN;
         this.value.setProperty(hmUI.prop.TEXT, String(reading.value));
         this.value.setProperty(hmUI.prop.COLOR, color);
-        this.trend.setProperty(hmUI.prop.TEXT, trendArrow(reading.trend));
+        this.renderTrend(reading.trend);
         this.status.setProperty(hmUI.prop.TEXT, `LibreLinkUp · ${ageMinutes} min ago`);
       })
       .catch((error) => {
