@@ -12,7 +12,7 @@ export function trendArrowPixels(trend, width, height) {
   const direction = TREND_DIRECTIONS[Number(trend)];
   if (!direction || width < 32 || height < 32) return [];
 
-  const magnitude = Math.hypot(direction[0], direction[1]);
+  const magnitude = Math.sqrt(direction[0] ** 2 + direction[1] ** 2);
   const ux = direction[0] / magnitude;
   const uy = direction[1] / magnitude;
   const px = -uy;
@@ -38,16 +38,16 @@ export function trendArrowPixels(trend, width, height) {
   ];
 
   const pixels = [];
-  const seen = new Set();
+  const seen = {};
   for (const [x1, y1, x2, y2] of strokes) {
-    const distance = Math.hypot(x2 - x1, y2 - y1);
+    const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
     const steps = Math.max(1, Math.ceil(distance / 2.5));
     for (let i = 0; i <= steps; i++) {
       const x = Math.round(x1 + (x2 - x1) * i / steps);
       const y = Math.round(y1 + (y2 - y1) * i / steps);
       const key = `${x}:${y}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
+      if (seen[key]) continue;
+      seen[key] = true;
       pixels.push({ x, y });
     }
   }
