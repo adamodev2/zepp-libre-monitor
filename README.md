@@ -24,7 +24,7 @@ This is a **work in progress under active development**, not a finished or medic
 | Feature | Status |
 | --- | --- |
 | Real current glucose (mg/dL) and trend arrow | **Confirmed on a physical Amazfit Active 2 Round** |
-| Glucose colors: green from 80 to 160 mg/dL (inclusive), yellow outside; adjustable in Zepp settings | Implemented; watch verification pending |
+| Glucose colors: green 80–160 mg/dL, yellow 70–79 and 161–240, red below 70 or above 240; all four thresholds adjustable | Implemented; watch verification pending |
 | Automatic refresh every 60 seconds while the app is open; manual **Refresh** | Implemented; physical-device glucose updates confirmed |
 | Two-hour / six-hour chart using actual LibreLinkUp history | **Confirmed to display on Active 2**; graph coverage varies |
 | One visible real point per five-minute time bucket | Implemented (not synthetic five-minute readings) |
@@ -80,8 +80,8 @@ Settings also provide **Diagnostics (select and copy text)**, **Clear diagnostic
 
 ## Using the watch
 
-- **Large number:** latest glucose in **mg/dL**; green from 80 to 160 mg/dL (inclusive) and yellow outside, or use your selected limits.
-- **Color range:** in Zepp > Libre Monitor > Settings, edit the lower and upper green limits. Defaults are 80 and 160 mg/dL. The current number, trend arrow, actual history dots, and line pixels turn yellow outside the range. Invalid/reversed limits fall back to defaults. This is a visual distinction only, not a glucose alert.
+- **Large number:** latest glucose in **mg/dL**; green from 80 to 160 mg/dL, yellow from 70–79 or 161–240 mg/dL, and red below 70 or above 240 mg/dL (all thresholds adjustable).
+- **Color range:** in Zepp > Libre Monitor > Settings, edit Very Low, Low, High, and Very High glucose thresholds. Defaults are 70, 80, 160, and 240 mg/dL respectively. The current number, trend arrow, actual history dots, and line pixels are red outside the extremes, yellow outside the green range, and green inside the Low/High boundaries. Invalid/reversed limits fall back to defaults. This is a visual distinction only, not a glucose alert.
 - **Arrow:** direction reported by LibreLinkUp; `·` means unavailable/unknown.
 - **`LibreLinkUp · Xm ago`:** age of the **current reading**, measured using the phone clock. Readings older than **15 minutes** are rejected.
 - **`2h / 6h`:** switch the chart time window. It displays at most one real recorded observation per five-minute bucket, not a prediction or interpolated value.
@@ -168,4 +168,4 @@ This is my personal, **AI-assisted** project, shared for others who may find it 
 
 ## Configurable display threshold testing
 
-The branch `feat/configurable-glucose-colors` includes the larger glucose number and the adjacent trend arrow from `feat/active2-readable-layout`, plus adjustable yellow/green ranges. Choose this branch for a combined device preview. The thresholds are visual preferences, not medical alerts; official Libre alarms remain necessary.
+The branch `feat/configurable-glucose-colors` includes the larger glucose number and the adjacent trend arrow from `feat/active2-readable-layout`, plus adjustable red/yellow/green ranges. Choose this branch for a combined device preview. The thresholds are visual preferences, not medical alerts; official Libre alarms remain necessary.
