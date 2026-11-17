@@ -100,7 +100,7 @@ Page(BasePage({
       x: controlX + 2 * (controlWidth + controlGap),
       y: layout.controls.y, w: controlWidth, h: layout.controls.h,
       text: this.backgroundEnabled ? "BG ON" : "BG OFF",
-      text_size: layout.controls.size - 1,
+      text_size: layout.controls.size,
       color: WHITE, normal_color: 0x263442,
       press_color: 0x405163, radius: 20,
       click_func: () => this.toggleBackground(),
