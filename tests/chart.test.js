@@ -189,6 +189,6 @@ test("gap between older points remains dashed while latest two points connect no
   assert.equal(graph.lines[4].dashed, false);
   assert.deepEqual(
     { x: graph.lines[4].x2, y: graph.lines[4].y2 },
-    graph.dots[graph.dots.length - 1],
+    { x: graph.dots[graph.dots.length - 1].x, y: graph.dots[graph.dots.length - 1].y },
   );
 });
