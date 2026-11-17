@@ -111,3 +111,17 @@ test("prefers newer lightweight glucose without losing stored graph points", () 
   assert.equal(restored.ageMinutes, 1);
   assert.equal(restored.history[0].ageMinutes, 2);
 });
+
+test("uses compact snapshot when reading full history throws", () => {
+  const now = Date.parse("2026-11-17T15:00:00Z");
+  const snapshot = createWatchSnapshot({ value: 138, ageMs: 0 }, null, now);
+  const store = {
+    getItem(key) {
+      if (key === WATCH_CACHE_KEY) throw new Error("Snapshot unreadable");
+      return JSON.stringify({ ...snapshot, history: [] });
+    },
+  };
+  const restored = readWatchSnapshot(store, now + 60_000);
+  assert.equal(restored.value, 138);
+  assert.equal(restored.ageMinutes, 1);
+});
