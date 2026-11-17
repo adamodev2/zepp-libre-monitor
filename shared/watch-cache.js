@@ -1,4 +1,6 @@
 export const WATCH_CACHE_KEY = "libre_watch_snapshot_v1";
+export const WATCH_READING_KEY = "libre_watch_reading_v1";
+export const BG_DIAGNOSTIC_STORAGE_PATH = "libre-bg-diagnostics";
 export const BG_SERVICE_DEBUG_KEY = "libre_bg_service_debug_v1";
 const MAX_HISTORY_MS = 6 * 60 * 60_000;
 const MAX_POINTS = 361;
@@ -29,9 +31,8 @@ export function createWatchSnapshot(reading, thresholds, now = Date.now()) {
   };
 }
 
-export function readWatchSnapshot(storage, now = Date.now()) {
+function parseStoredSnapshot(stored, now) {
   try {
-    const stored = storage?.getItem(WATCH_CACHE_KEY);
     const snapshot = typeof stored === "string" ? JSON.parse(stored) : stored;
     if (!snapshot || snapshot.version !== 1 ||
         !Number.isFinite(snapshot.timestamp) ||
@@ -51,6 +52,39 @@ export function readWatchSnapshot(storage, now = Date.now()) {
       ageMinutes: Math.max(0, (now - point.timestamp) / 60_000),
     }));
     return { ...snapshot, history: points, ageMinutes: Math.max(0, Math.floor((now - snapshot.timestamp) / 60_000)) };
+  } catch (_) {
+    return null;
+  }
+}
+
+// A small independent record ensures a graph write failure cannot blank the
+// previous measurement. The full snapshot key remains backward compatible.
+export function saveWatchSnapshot(storage, snapshot) {
+  if (!storage || !snapshot) return false;
+  try {
+    const { history, ...reading } = snapshot;
+    storage.setItem(WATCH_READING_KEY, JSON.stringify({ ...reading, history: [] }));
+  } catch (_) {
+    // Continue: the full snapshot may still succeed.
+  }
+  try {
+    storage.setItem(WATCH_CACHE_KEY, JSON.stringify(snapshot));
+  } catch (_) {
+    // Keep the independently saved reading when chart storage fails.
+  }
+  const checked = readWatchSnapshot(storage, snapshot.savedAt);
+  return Boolean(checked && checked.value === snapshot.value && checked.timestamp === snapshot.timestamp);
+}
+
+export function readWatchSnapshot(storage, now = Date.now()) {
+  try {
+    const full = parseStoredSnapshot(storage?.getItem(WATCH_CACHE_KEY), now);
+    const small = parseStoredSnapshot(storage?.getItem(WATCH_READING_KEY), now);
+    if (!small) return full;
+    if (!full) return small;
+    if (full.savedAt > small.savedAt) return full;
+    // Use the newest reading and the real, timestamped history saved so far.
+    return { ...small, history: full.history };
   } catch (_) {
     return null;
   }
