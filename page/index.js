@@ -1,11 +1,15 @@
 import * as hmUI from "@zos/ui";
 import { getDeviceInfo, SCREEN_SHAPE_SQUARE } from "@zos/device";
 import * as timer from "@zos/timer";
+import { LocalStorage } from "@zos/storage";
+import { queryPermission, requestPermission } from "@zos/app";
+import { start, stop, getAllAppServices } from "@zos/app-service";
 import { BasePage } from "@zeppos/zml/base-page";
 import { normalizeReading, glucoseBand, parseGlucoseThresholds } from "../shared/glucose";
 import { chartSegments, chartStrokePixels } from "../shared/chart";
-import { trendArrowPixels } from "../shared/trend-icon";
 import { createWatchLayout } from "../shared/watch-layout";
+import { trendArrowPixels } from "../shared/trend-icon";
+import { WATCH_CACHE_KEY, BG_SERVICE_DEBUG_KEY, createWatchSnapshot, readWatchSnapshot } from "../shared/watch-cache";
 
 const device = getDeviceInfo();
 const WIDTH = device.width || 466;
@@ -20,6 +24,8 @@ const AMBER = 0xffc247;
 const REFRESH_INTERVAL_MS = 60_000;
 const MAX_READING_AGE_MS = 15 * 60_000;
 const REQUEST_TIMEOUT_MS = 20_000;
+const BACKGROUND_SERVICE_PATH = "app-service/history-sync";
+const watchStorage = new LocalStorage();
 
 function label(frame, color, text, options = {}) {
   return hmUI.createWidget(hmUI.widget.TEXT, {
@@ -44,6 +50,11 @@ Page(BasePage({
     this.history = [];
     this.chartWidgets = [];
     this.thresholds = parseGlucoseThresholds();
+    this.historyMeta = null;
+    this.lastLiveAgeMinutes = null;
+    this.backgroundEnabled = false;
+    this.backgroundPending = false;
+    this.hasCachedSnapshot = false;
     this.trendWidgets = [];
     this.activeTrend = null;
     this.activeTrendColor = null;
@@ -56,15 +67,19 @@ Page(BasePage({
       x: layout.glucose.x, w: layout.glucose.w,
       align_h: hmUI.align.RIGHT,
     });
-    // Native arrow strokes avoid missing Unicode arrow glyphs on Active 2.
+    // Draw a native arrow to avoid unsupported Unicode glyphs on Active 2.
     this.renderTrend(0, MUTED);
     this.units = label(layout.units, MUTED, "mg/dL");
     // Chart, labels and controls use the space freed by the old trend row.
     this.chartCaption = label(layout.chartCaption, MUTED, "LAST 2 HOURS");
     this.status = label(layout.status, MUTED, "Connecting to LibreLinkUp...");
+    this.refreshBackgroundState();
+    const controlWidth = Math.min(80, Math.floor((WIDTH - 94) / 3));
+    const controlGap = 7;
+    const controlX = Math.round((WIDTH - 3 * controlWidth - 2 * controlGap) / 2);
     this.toggleChart = hmUI.createWidget(hmUI.widget.BUTTON, {
-      x: layout.controls.x, y: layout.controls.y,
-      w: layout.controls.w, h: layout.controls.h,
+      x: controlX, y: layout.controls.y,
+      w: controlWidth, h: layout.controls.h,
       text: "2h / 6h", text_size: layout.controls.size,
       color: WHITE, normal_color: 0x263442,
       press_color: 0x405163, radius: 20,
@@ -74,13 +89,23 @@ Page(BasePage({
       },
     });
     this.refresh = hmUI.createWidget(hmUI.widget.BUTTON, {
-      x: layout.controls.x + layout.controls.w + layout.controls.gap,
-      y: layout.controls.y, w: layout.controls.w, h: layout.controls.h,
+      x: controlX + controlWidth + controlGap,
+      y: layout.controls.y, w: controlWidth, h: layout.controls.h,
       text: "Refresh", text_size: layout.controls.size,
       color: WHITE, normal_color: 0x263442,
       press_color: 0x405163, radius: 20,
       click_func: () => this.loadReading(),
     });
+    this.backgroundButton = hmUI.createWidget(hmUI.widget.BUTTON, {
+      x: controlX + 2 * (controlWidth + controlGap),
+      y: layout.controls.y, w: controlWidth, h: layout.controls.h,
+      text: this.backgroundEnabled ? "BG ON" : "BG OFF",
+      text_size: layout.controls.size - 2,
+      color: WHITE, normal_color: 0x263442,
+      press_color: 0x405163, radius: 20,
+      click_func: () => this.toggleBackground(),
+    });
+    this.restoreWatchSnapshot();
     this.drawChart();
     this.loadReading();
     this.refreshTimer = timer.createTimer(
@@ -113,9 +138,160 @@ Page(BasePage({
     this.requestInFlight = false;
   },
   showError(message) {
-    this.value.setProperty(hmUI.prop.TEXT, "--");
-    this.renderTrend(0, MUTED);
-    this.status.setProperty(hmUI.prop.TEXT, String(message).slice(0, 46));
+    if (!this.hasCachedSnapshot) {
+      this.value.setProperty(hmUI.prop.TEXT, "--");
+      this.renderTrend(0, MUTED);
+    }
+    this.status.setProperty(hmUI.prop.TEXT,
+      this.hasCachedSnapshot ? "CACHED · " + String(message).slice(0, 29) : String(message).slice(0, 46));
+  },
+  restoreWatchSnapshot() {
+    const cached = readWatchSnapshot(watchStorage);
+    if (!cached) return;
+    this.hasCachedSnapshot = true;
+    this.thresholds = parseGlucoseThresholds(
+      cached.thresholds?.low, cached.thresholds?.high,
+      cached.thresholds?.veryLow, cached.thresholds?.veryHigh
+    );
+    this.history = cached.history;
+    this.value.setProperty(hmUI.prop.TEXT, String(cached.value));
+    this.value.setProperty(hmUI.prop.COLOR, this.glucoseColor(cached.value));
+    this.renderTrend(cached.trend, this.glucoseColor(cached.value));
+    this.status.setProperty(hmUI.prop.TEXT, "CACHED " + cached.ageMinutes + "m · Connecting");
+  },
+  saveWatchSnapshot(reading) {
+    const snapshot = createWatchSnapshot(reading, this.thresholds);
+    if (!snapshot) return;
+    try {
+      // String serialization makes the persisted format unambiguous.
+      watchStorage.setItem(WATCH_CACHE_KEY, JSON.stringify(snapshot));
+      const checked = readWatchSnapshot(watchStorage);
+      if (!checked || checked.value !== snapshot.value) {
+        console.log("[LibreMonitor] WATCH_CACHE_VERIFY_FAILED");
+        return;
+      }
+      this.hasCachedSnapshot = true;
+      console.log("[LibreMonitor] WATCH_CACHE_SAVED");
+    } catch (_) {
+      console.log("[LibreMonitor] WATCH_CACHE_WRITE_FAILED");
+      // Storage errors must never block live readings.
+    }
+  },
+  refreshBackgroundState() {
+    try {
+      const services = getAllAppServices();
+      this.backgroundEnabled = Array.isArray(services) && services.includes(BACKGROUND_SERVICE_PATH);
+    } catch (_) {
+      this.backgroundEnabled = false;
+    }
+  },
+  setBackgroundState(enabled) {
+    this.backgroundPending = false;
+    this.backgroundEnabled = enabled;
+    if (this.backgroundButton) {
+      this.backgroundButton.setProperty(hmUI.prop.TEXT, enabled ? "BG ON" : "BG OFF");
+    }
+    this.updateHistoryStatus();
+  },
+  toggleBackground() {
+    if (this.backgroundPending || this.destroyed) return;
+    this.backgroundPending = true;
+    if (this.backgroundEnabled) {
+      try {
+        const result = stop({
+          file: BACKGROUND_SERVICE_PATH,
+          complete_func: (event) => {
+            if (this.destroyed) return;
+            this.setBackgroundState(!event?.result);
+            if (!event?.result) this.status.setProperty(hmUI.prop.TEXT, "Could not stop BG service");
+          },
+        });
+        if (result !== 0) {
+          this.setBackgroundState(true);
+          this.status.setProperty(hmUI.prop.TEXT, "BG stop error: " + result);
+        }
+      } catch (_) {
+        this.setBackgroundState(true);
+        this.status.setProperty(hmUI.prop.TEXT, "BG stop not supported");
+      }
+      return;
+    }
+    let requested = false;
+    const startService = () => {
+      if (requested || this.destroyed) return;
+      requested = true;
+      try {
+        const result = start({
+          file: BACKGROUND_SERVICE_PATH,
+          complete_func: (event) => {
+            if (this.destroyed) return;
+            this.setBackgroundState(Boolean(event?.result));
+            if (!event?.result) this.status.setProperty(hmUI.prop.TEXT, "BG unavailable on this watch");
+          },
+        });
+        if (result !== 0) {
+          this.setBackgroundState(false);
+          this.status.setProperty(hmUI.prop.TEXT, "BG error: " + result);
+        }
+      } catch (_) {
+        this.setBackgroundState(false);
+        this.status.setProperty(hmUI.prop.TEXT, "BG service not supported");
+      }
+    };
+    try {
+      const granted = queryPermission({ permissions: ["device:os.bg_service"] });
+      if (Array.isArray(granted) && granted[0] === 2) {
+        startService();
+        return;
+      }
+      const result = requestPermission({
+        permissions: ["device:os.bg_service"],
+        callback: (values) => {
+          if (this.destroyed) return;
+          if (Array.isArray(values) && values[0] === 2) startService();
+          else {
+            this.setBackgroundState(false);
+            this.status.setProperty(hmUI.prop.TEXT, "BG permission denied");
+          }
+        },
+      });
+      if (result === 2) startService();
+      else if (result === 1) {
+        this.setBackgroundState(false);
+        this.status.setProperty(hmUI.prop.TEXT, "BG permission unavailable");
+      }
+    } catch (_) {
+      this.setBackgroundState(false);
+      this.status.setProperty(hmUI.prop.TEXT, "BG permission not supported");
+    }
+  },
+  updateHistoryStatus() {
+    if (!this.status || !Number.isFinite(this.lastLiveAgeMinutes)) return;
+    const graphAge = this.historyMeta?.graphAgeMinutes;
+    const bgAge = this.historyMeta?.backgroundSyncAgeMinutes;
+    const live = "LIVE " + this.lastLiveAgeMinutes + "m";
+    const graph = "GRAPH " + (Number.isFinite(graphAge) ? Math.round(graphAge) + "m" : "N/A");
+    let bgText = Number.isFinite(bgAge) ? Math.round(bgAge) + "m" : "WAIT";
+    if (this.backgroundEnabled && !Number.isFinite(bgAge)) {
+      try {
+        const diagnostic = watchStorage.getItem(BG_SERVICE_DEBUG_KEY);
+        if (Number.isFinite(diagnostic?.timestamp) &&
+            diagnostic.timestamp >= Date.now() - 20 * 60_000) {
+          const codes = {
+            NO_BRIDGE: "NO LINK",
+            REQUESTED: "REQUEST",
+            FAILED: "FAILED",
+            UNAVAILABLE: "NO DATA",
+            STARTED: "STARTED",
+          };
+          bgText = codes[diagnostic.state] || bgText;
+        }
+      } catch (_) {
+        // Missing diagnostic information is not a reading failure.
+      }
+    }
+    const bg = this.backgroundEnabled ? " · BG " + bgText : "";
+    this.status.setProperty(hmUI.prop.TEXT, live + " · " + graph + bg);
   },
   clearTrendWidgets() {
     for (const widget of this.trendWidgets) hmUI.deleteWidget(widget);
@@ -212,7 +388,7 @@ Page(BasePage({
     if (this.requestInFlight || this.destroyed) return;
     this.requestInFlight = true;
     const sequence = ++this.requestSequence;
-    this.status.setProperty(hmUI.prop.TEXT, "Connecting to phone...");
+    if (!this.hasCachedSnapshot) this.status.setProperty(hmUI.prop.TEXT, "Connecting to phone...");
     this.stopWatchdog();
     this.watchdogTimer = timer.createTimer(REQUEST_TIMEOUT_MS, REQUEST_TIMEOUT_MS, () => {
       if (this.destroyed || this.requestSequence !== sequence) return;
@@ -226,7 +402,7 @@ Page(BasePage({
           throw new Error("Phone service PING failed");
         }
         if (this.destroyed || sequence !== this.requestSequence) return null;
-        this.status.setProperty(hmUI.prop.TEXT, "Phone OK, contacting Libre...");
+        if (!this.hasCachedSnapshot) this.status.setProperty(hmUI.prop.TEXT, "Phone OK, contacting Libre...");
         return this.request({ method: "GET_GLUCOSE" });
       })
       .then((response) => {
@@ -244,12 +420,15 @@ Page(BasePage({
           response.thresholds?.veryLow, response.thresholds?.veryHigh
         );
         this.history = Array.isArray(response.reading.history) ? response.reading.history : [];
+        this.historyMeta = response.reading.historyMeta || null;
+        this.lastLiveAgeMinutes = ageMinutes;
         this.drawChart();
         const color = this.glucoseColor(reading.value);
         this.value.setProperty(hmUI.prop.TEXT, String(reading.value));
         this.value.setProperty(hmUI.prop.COLOR, color);
         this.renderTrend(reading.trend, color);
-        this.status.setProperty(hmUI.prop.TEXT, `LibreLinkUp · ${ageMinutes} min ago`);
+        this.updateHistoryStatus();
+        this.saveWatchSnapshot(response.reading);
       })
       .catch((error) => {
         if (this.destroyed || sequence !== this.requestSequence) return;

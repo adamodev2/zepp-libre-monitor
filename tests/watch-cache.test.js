@@ -1,0 +1,76 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { WATCH_CACHE_KEY, createWatchSnapshot, readWatchSnapshot } from "../shared/watch-cache.js";
+
+function storage() {
+  const memory = new Map();
+  return {
+    setItem(key, value) { memory.set(key, value); },
+    getItem(key) { return memory.get(key); },
+  };
+}
+
+test("watch restores last glucose and history without a network request", () => {
+  const now = Date.parse("2026-11-17T15:00:00Z");
+  const store = storage();
+  store.setItem(WATCH_CACHE_KEY, createWatchSnapshot({
+    value: 123, ageMs: 120_000, trend: 4,
+    history: [
+      { value: 110, ageMinutes: 62 },
+      { value: 123, ageMinutes: 2 },
+    ],
+  }, { veryLow: 70, low: 80, high: 160, veryHigh: 240 }, now));
+  const cache = readWatchSnapshot(store, now + 180_000);
+  assert.equal(cache.value, 123);
+  assert.equal(cache.ageMinutes, 5);
+  assert.deepEqual(cache.history.map((p) => p.ageMinutes), [65, 5]);
+  assert.equal(cache.thresholds.high, 160);
+});
+
+test("expired history and invalid snapshots are rejected", () => {
+  const now = Date.parse("2026-11-17T15:00:00Z");
+  const store = storage();
+  assert.equal(readWatchSnapshot(store, now), null);
+  store.setItem(WATCH_CACHE_KEY, createWatchSnapshot({
+    value: 130, ageMs: 0, trend: 3,
+    history: [{ value: 100, ageMinutes: 360 }],
+  }, null, now - 7 * 60 * 60_000));
+  assert.equal(readWatchSnapshot(store, now), null);
+  assert.equal(createWatchSnapshot({ value: 120, ageMs: 25 * 60_000 }), null);
+});
+
+test("expired graph samples are not displayed as current history", () => {
+  const now = Date.parse("2026-11-17T15:00:00Z");
+  const store = storage();
+  store.setItem(WATCH_CACHE_KEY, createWatchSnapshot({
+    value: 90, ageMs: 0, trend: 2,
+    history: [
+      { value: 90, ageMinutes: 5 },
+      { value: 85, ageMinutes: 355 },
+    ],
+  }, null, now));
+  const cache = readWatchSnapshot(store, now + 15 * 60_000);
+  assert.equal(cache.history.length, 1);
+  assert.equal(cache.history[0].ageMinutes, 20);
+});
+
+test("watch restores a JSON-serialized snapshot after a new LocalStorage instance", () => {
+  const now = Date.parse("2026-11-17T15:00:00Z");
+  const state = new Map();
+  const first = {
+    setItem(key, value) { state.set(key, value); },
+    getItem(key) { return state.get(key); },
+  };
+  const second = {
+    getItem(key) { return state.get(key); },
+  };
+  const snapshot = createWatchSnapshot({
+    value: 140, ageMs: 60_000, trend: 3,
+    history: [{ value: 140, ageMinutes: 1 }],
+  }, { veryLow: 70, low: 80, high: 160, veryHigh: 240 }, now);
+  first.setItem(WATCH_CACHE_KEY, JSON.stringify(snapshot));
+  const restored = readWatchSnapshot(second, now + 120_000);
+  assert.equal(restored.value, 140);
+  assert.equal(restored.ageMinutes, 3);
+  assert.equal(restored.history[0].ageMinutes, 3);
+});
