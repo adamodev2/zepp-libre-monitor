@@ -14,6 +14,17 @@ AppSettingsPage({
         value: storage.getItem("libre_password") || "",
         onChange: (value) => storage.setItem("libre_password", value),
       }),
+      Text({ paragraph: "Display color range (mg/dL). Below the lower limit and above the upper limit, glucose, trend arrow and chart turn yellow. Both boundaries remain green. Invalid limits reset to 80 and 160." }),
+      TextInput({
+        label: "Lower green limit (default 80)",
+        value: storage.getItem("glucose_low") || "80",
+        onChange: (value) => storage.setItem("glucose_low", String(value).trim()),
+      }),
+      TextInput({
+        label: "Upper green limit (default 160)",
+        value: storage.getItem("glucose_high") || "160",
+        onChange: (value) => storage.setItem("glucose_high", String(value).trim()),
+      }),
       Text({ paragraph: "Diagnostics contain only timestamped event codes and HTTP statuses. No account credentials, tokens, glucose values or response bodies are logged." }),
       TextInput({
         label: "Diagnostics (select and copy text)",
