@@ -1,12 +1,13 @@
 import { Time } from "@zos/sensor";
 import { LocalStorage } from "@zos/storage";
-import { BG_SERVICE_DEBUG_KEY } from "../shared/watch-cache";
+import { BG_DIAGNOSTIC_STORAGE_PATH, BG_SERVICE_DEBUG_KEY } from "../shared/watch-cache";
 import { BasePage } from "@zeppos/zml/base-page";
 
 const SYNC_INTERVAL_MS = 5 * 60_000;
 const REQUEST_TIMEOUT_MS = 2 * 60_000;
 const timeSensor = new Time();
-const diagnosticStorage = new LocalStorage();
+// Separate file prevents service diagnostics from clobbering a cached reading.
+const diagnosticStorage = new LocalStorage(BG_DIAGNOSTIC_STORAGE_PATH);
 
 function trackBackground(state, now = timeSensor.getTime()) {
   try {
