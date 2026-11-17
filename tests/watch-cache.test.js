@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WATCH_CACHE_KEY, createWatchSnapshot, readWatchSnapshot } from "../shared/watch-cache.js";
+import { WATCH_CACHE_KEY, WATCH_READING_KEY, createWatchSnapshot, readWatchSnapshot, saveWatchSnapshot } from "../shared/watch-cache.js";
 
 function storage() {
   const memory = new Map();
@@ -73,4 +73,41 @@ test("watch restores a JSON-serialized snapshot after a new LocalStorage instanc
   assert.equal(restored.value, 140);
   assert.equal(restored.ageMinutes, 3);
   assert.equal(restored.history[0].ageMinutes, 3);
+});
+
+test("restores the last reading if writing full history fails", () => {
+  const now = Date.parse("2026-11-17T15:00:00Z");
+  const state = new Map();
+  const store = {
+    setItem(key, value) {
+      if (key === WATCH_CACHE_KEY) throw new Error("Graph snapshot write failed");
+      state.set(key, value);
+    },
+    getItem(key) { return state.get(key); },
+  };
+  const snapshot = createWatchSnapshot({
+    value: 142, trend: 3, ageMs: 60_000,
+    history: [{ value: 130, ageMinutes: 5 }],
+  }, null, now);
+  assert.equal(saveWatchSnapshot(store, snapshot), true);
+  assert.ok(state.has(WATCH_READING_KEY));
+  const restored = readWatchSnapshot(store, now + 60_000);
+  assert.equal(restored.value, 142);
+  assert.equal(restored.ageMinutes, 2);
+  assert.deepEqual(restored.history, []);
+});
+
+test("prefers newer lightweight glucose without losing stored graph points", () => {
+  const now = Date.parse("2026-11-17T15:00:00Z");
+  const store = storage();
+  const first = createWatchSnapshot({
+    value: 120, ageMs: 0, history: [{ value: 120, ageMinutes: 0 }],
+  }, null, now);
+  assert.equal(saveWatchSnapshot(store, first), true);
+  const second = createWatchSnapshot({ value: 125, ageMs: 0 }, null, now + 60_000);
+  store.setItem(WATCH_READING_KEY, JSON.stringify({ ...second, history: [] }));
+  const restored = readWatchSnapshot(store, now + 120_000);
+  assert.equal(restored.value, 125);
+  assert.equal(restored.ageMinutes, 1);
+  assert.equal(restored.history[0].ageMinutes, 2);
 });
