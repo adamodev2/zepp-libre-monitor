@@ -2,7 +2,7 @@ import * as hmUI from "@zos/ui";
 import { getDeviceInfo, SCREEN_SHAPE_SQUARE } from "@zos/device";
 import * as timer from "@zos/timer";
 import { BasePage } from "@zeppos/zml/base-page";
-import { normalizeReading, trendArrow, glucoseBand } from "../shared/glucose";
+import { normalizeReading, trendArrow, glucoseBand, parseGlucoseThresholds } from "../shared/glucose";
 import { chartSegments, chartStrokePixels } from "../shared/chart";
 import { createWatchLayout } from "../shared/watch-layout";
 
@@ -42,6 +42,7 @@ Page(BasePage({
     this.chartMinutes = 120;
     this.history = [];
     this.chartWidgets = [];
+    this.thresholds = { low: 80, high: 160 };
   },
   build() {
     this.heading = label(layout.heading, MUTED, "LIBRE MONITOR");
@@ -120,6 +121,9 @@ Page(BasePage({
   addChartWidget(type, options) {
     this.chartWidgets.push(hmUI.createWidget(type, options));
   },
+  glucoseColor(value) {
+    return glucoseBand(value, this.thresholds) === "target" ? GREEN : AMBER;
+  },
   drawChart() {
     const width = layout.chart.w, height = layout.chart.h;
     const graph = chartSegments(this.history, this.chartMinutes, width, height);
@@ -141,7 +145,7 @@ Page(BasePage({
     for (const pixel of chartStrokePixels(graph.lines.filter((line) => !line.dashed), 140)) {
       this.addChartWidget(hmUI.widget.FILL_RECT, {
         x: ox + pixel.x - 1, y: oy + pixel.y - 1,
-        w: 3, h: 3, color: GREEN,
+        w: 3, h: 3, color: this.glucoseColor(pixel.value),
       });
     }
     // Dashed connectors mark 21-30 minute gaps anywhere in the history.
@@ -158,7 +162,7 @@ Page(BasePage({
     for (const dot of graph.dots) {
       this.addChartWidget(hmUI.widget.CIRCLE, {
         center_x: ox + dot.x, center_y: oy + dot.y,
-        radius: 3, color: GREEN,
+        radius: 3, color: this.glucoseColor(dot.value),
       });
     }
     if (graph.count === 0) {
@@ -201,13 +205,14 @@ Page(BasePage({
         if (response.reading?.ageMs === null || !Number.isFinite(ageMs)) throw new Error("Reading has invalid UTC timestamp");
         const ageMinutes = Math.floor(ageMs / 60_000);
         if (ageMs < -60_000 || ageMs > MAX_READING_AGE_MS) throw new Error("Reading unavailable or older than 15 min");
+        this.thresholds = parseGlucoseThresholds(response.thresholds?.low, response.thresholds?.high);
         this.history = Array.isArray(response.reading.history) ? response.reading.history : [];
         this.drawChart();
-        const band = glucoseBand(reading.value);
-        const color = band === "low" ? RED : band === "high" ? AMBER : GREEN;
+        const color = this.glucoseColor(reading.value);
         this.value.setProperty(hmUI.prop.TEXT, String(reading.value));
         this.value.setProperty(hmUI.prop.COLOR, color);
         this.trend.setProperty(hmUI.prop.TEXT, trendArrow(reading.trend));
+        this.trend.setProperty(hmUI.prop.COLOR, color);
         this.status.setProperty(hmUI.prop.TEXT, `LibreLinkUp · ${ageMinutes} min ago`);
       })
       .catch((error) => {
