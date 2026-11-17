@@ -133,7 +133,7 @@ test("latest real glucose point bridges a moderate 25-minute graph lag", () => {
   const latestLine = graph.lines[2];
   assert.deepEqual(
     { x: latestLine.x2, y: latestLine.y2 },
-    graph.dots[graph.dots.length - 1],
+    { x: graph.dots[graph.dots.length - 1].x, y: graph.dots[graph.dots.length - 1].y },
     "the connector must terminate exactly at the current glucose marker",
   );
   assert.ok(chartStrokePixels([latestLine], 25).length > 0);
