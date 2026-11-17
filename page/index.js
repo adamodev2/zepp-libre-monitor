@@ -272,7 +272,7 @@ Page(BasePage({
     const live = "LIVE " + this.lastLiveAgeMinutes + "m";
     const graph = "GRAPH " + (Number.isFinite(graphAge) ? Math.round(graphAge) + "m" : "N/A");
     let bgText = Number.isFinite(bgAge) ? Math.round(bgAge) + "m" : "WAIT";
-    if (this.backgroundEnabled && !Number.isFinite(bgAge)) {
+    if (this.backgroundEnabled) {
       try {
         const diagnostic = watchStorage.getItem(BG_SERVICE_DEBUG_KEY);
         if (Number.isFinite(diagnostic?.timestamp) &&
@@ -283,8 +283,10 @@ Page(BasePage({
             FAILED: "FAILED",
             UNAVAILABLE: "NO DATA",
             STARTED: "STARTED",
+            TIMEOUT: "TIMEOUT",
+            OK: "OK",
           };
-          bgText = codes[diagnostic.state] || bgText;
+          if (!Number.isFinite(bgAge)) bgText = codes[diagnostic.state] || bgText;
         }
       } catch (_) {
         // Missing diagnostic information is not a reading failure.
