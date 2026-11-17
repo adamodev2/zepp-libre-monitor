@@ -42,7 +42,7 @@ Page(BasePage({
     this.chartMinutes = 120;
     this.history = [];
     this.chartWidgets = [];
-    this.thresholds = { low: 80, high: 160 };
+    this.thresholds = parseGlucoseThresholds();
   },
   build() {
     this.heading = label(layout.heading, MUTED, "LIBRE MONITOR");
@@ -122,7 +122,9 @@ Page(BasePage({
     this.chartWidgets.push(hmUI.createWidget(type, options));
   },
   glucoseColor(value) {
-    return glucoseBand(value, this.thresholds) === "target" ? GREEN : AMBER;
+    const band = glucoseBand(value, this.thresholds);
+    return band === "target" ? GREEN :
+      band === "very-low" || band === "very-high" ? RED : AMBER;
   },
   drawChart() {
     const width = layout.chart.w, height = layout.chart.h;
@@ -155,7 +157,7 @@ Page(BasePage({
       const pixel = bridgePixels[i];
       this.addChartWidget(hmUI.widget.FILL_RECT, {
         x: ox + pixel.x - 1, y: oy + pixel.y - 1,
-        w: 3, h: 3, color: GREEN,
+        w: 3, h: 3, color: this.glucoseColor(pixel.value),
       });
     }
     // Show one actual measurement per five-minute bucket.
@@ -205,7 +207,10 @@ Page(BasePage({
         if (response.reading?.ageMs === null || !Number.isFinite(ageMs)) throw new Error("Reading has invalid UTC timestamp");
         const ageMinutes = Math.floor(ageMs / 60_000);
         if (ageMs < -60_000 || ageMs > MAX_READING_AGE_MS) throw new Error("Reading unavailable or older than 15 min");
-        this.thresholds = parseGlucoseThresholds(response.thresholds?.low, response.thresholds?.high);
+        this.thresholds = parseGlucoseThresholds(
+          response.thresholds?.low, response.thresholds?.high,
+          response.thresholds?.veryLow, response.thresholds?.veryHigh
+        );
         this.history = Array.isArray(response.reading.history) ? response.reading.history : [];
         this.drawChart();
         const color = this.glucoseColor(reading.value);
