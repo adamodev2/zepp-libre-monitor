@@ -24,21 +24,21 @@ export function createWatchLayout(width, height, isSquare) {
       w: 65, h: isSquare ? 63 : 68, size: 52,
     },
     units: { y: isSquare ? 164 : 182, h: 32, size: 26 },
-    chartCaption: { y: isSquare ? 201 : 218, h: 28, size: 21 },
+    chartCaption: { y: isSquare ? 201 : 218, h: 28, size: 23 },
     chart: {
       x: Math.round((width - chartWidth) / 2),
       y: isSquare ? 232 : 249,
       w: chartWidth,
       h: isSquare ? 112 : 109,
     },
-    status: { y: isSquare ? 352 : 360, h: 30, size: 19 },
+    status: { y: isSquare ? 352 : 360, h: 30, size: 21 },
     controls: {
       x: buttonX,
       y: isSquare ? height - 60 : height - 75,
       w: buttonWidth,
       h: 44,
       gap: buttonGap,
-      size: 19,
+      size: 21,
     },
   };
 }
