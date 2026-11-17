@@ -1,6 +1,7 @@
 import { BaseSideService } from "@zeppos/zml/base-side";
 import { getGlucose } from "./librelinkup";
 import { addDiagnostic } from "./diagnostics";
+import { parseGlucoseThresholds } from "../shared/glucose";
 
 function publicError(error) {
   const message = String(error?.message || "");
@@ -33,7 +34,11 @@ AppSideService(BaseSideService({
       if (!email || !password) addDiagnostic("CREDENTIALS_MISSING");
       const reading = await getGlucose(email, password, addDiagnostic);
       addDiagnostic("REQUEST_FINISHED", "OK");
-      res(null, { reading });
+      const thresholds = parseGlucoseThresholds(
+        settings.settingsStorage.getItem("glucose_low") || 80,
+        settings.settingsStorage.getItem("glucose_high") || 160
+      );
+      res(null, { reading, thresholds });
     } catch (error) {
       addDiagnostic("REQUEST_FINISHED", "ERROR");
       // Never expose untrusted error objects, passwords, tokens, or response bodies.
