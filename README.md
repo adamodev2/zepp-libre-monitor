@@ -78,6 +78,10 @@ Settings also provide **Diagnostics (select and copy text)**, **Clear diagnostic
 
 **Do not paste your password, Abbott auth token, full request logs or account identifiers into GitHub issues.** Use only sanitized diagnostic event codes when reporting a problem.
 
+## Native trend arrow rendering
+
+On some physical Amazfit Active 2 watches, Unicode trend glyphs (especially upward arrows) display as white replacement squares. Trend directions are now drawn using native Zepp UI rectangles instead of Unicode characters. The five LibreLinkUp trend directions remain unchanged. The arrow uses the **same configurable red/yellow/green color as the glucose reading** and is redrawn when either the direction or the glucose band changes. A neutral dot indicates an unknown trend.
+
 ## Using the watch
 
 - **Large number:** latest glucose in **mg/dL**; green from 80 to 160 mg/dL, yellow from 70–79 or 161–240 mg/dL, and red below 70 or above 240 mg/dL (all thresholds adjustable).
