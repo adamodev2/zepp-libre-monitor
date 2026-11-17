@@ -24,7 +24,7 @@ This is a **work in progress under active development**, not a finished or medic
 | Feature | Status |
 | --- | --- |
 | Real current glucose (mg/dL) and trend arrow | **Confirmed on a physical Amazfit Active 2 Round** |
-| Glucose colors: below 70 / 70–180 / above 180 mg/dL | Implemented; fixed thresholds, not personalized |
+| Glucose colors: green from 80 to 160 mg/dL (inclusive), yellow outside; adjustable in Zepp settings | Implemented; watch verification pending |
 | Automatic refresh every 60 seconds while the app is open; manual **Refresh** | Implemented; physical-device glucose updates confirmed |
 | Two-hour / six-hour chart using actual LibreLinkUp history | **Confirmed to display on Active 2**; graph coverage varies |
 | One visible real point per five-minute time bucket | Implemented (not synthetic five-minute readings) |
@@ -80,12 +80,13 @@ Settings also provide **Diagnostics (select and copy text)**, **Clear diagnostic
 
 ## Using the watch
 
-- **Large number:** latest glucose in **mg/dL**; color changes below 70 or above 180 mg/dL.
+- **Large number:** latest glucose in **mg/dL**; green from 80 to 160 mg/dL (inclusive) and yellow outside, or use your selected limits.
+- **Color range:** in Zepp > Libre Monitor > Settings, edit the lower and upper green limits. Defaults are 80 and 160 mg/dL. The current number, trend arrow, actual history dots, and line pixels turn yellow outside the range. Invalid/reversed limits fall back to defaults. This is a visual distinction only, not a glucose alert.
 - **Arrow:** direction reported by LibreLinkUp; `·` means unavailable/unknown.
 - **`LibreLinkUp · Xm ago`:** age of the **current reading**, measured using the phone clock. Readings older than **15 minutes** are rejected.
 - **`2h / 6h`:** switch the chart time window. It displays at most one real recorded observation per five-minute bucket, not a prediction or interpolated value.
 - **`GAP Nm`:** largest interval of over 20 minutes between adjacent displayed observations. A **dashed line** connects actual points across 21–30 minutes; a longer break stays unconnected.
-- **`Refresh`:** request a new value manually.
+- **`Refresh`:** request a new value manually and reload the current color thresholds.
 
 The **current glucose** comes from LibreLinkUp's connection measurement. The **history** comes from a separate `/llu/connections/{patientId}/graph` request and from real observations collected while the app is running. Abbott may return sparse or delayed history even when the latest glucose is fresh. The chart cannot reconstruct readings that were never received.
 
@@ -164,3 +165,7 @@ This is my personal, **AI-assisted** project, shared for others who may find it 
 - **`feat/zepp-glucose-app-mvp`** contains the foreground monitor, settings, chart and direct LibreLinkUp connection. It is reviewed in [PR #1](https://github.com/adamodev2/zepp-libre-monitor/pull/1) against `main`.
 - **`feat/background-glucose-history`** builds on the MVP and adds experimental background features and persistent history. It is reviewed in [PR #5](https://github.com/adamodev2/zepp-libre-monitor/pull/5) against the MVP branch.
 - **Recommended merge order:** review/merge **PR #1** into `main` first; then retarget **PR #5** to `main`, test its optional background behavior, and merge only when acceptable. The background feature is not needed for normal live-glucose display.
+
+## Configurable display threshold testing
+
+The branch `feat/configurable-glucose-colors` includes the larger glucose number and the adjacent trend arrow from `feat/active2-readable-layout`, plus adjustable yellow/green ranges. Choose this branch for a combined device preview. The thresholds are visual preferences, not medical alerts; official Libre alarms remain necessary.
