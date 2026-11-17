@@ -76,16 +76,20 @@ export function saveWatchSnapshot(storage, snapshot) {
   return Boolean(checked && checked.value === snapshot.value && checked.timestamp === snapshot.timestamp);
 }
 
-export function readWatchSnapshot(storage, now = Date.now()) {
+function readStoredKey(storage, key, now) {
   try {
-    const full = parseStoredSnapshot(storage?.getItem(WATCH_CACHE_KEY), now);
-    const small = parseStoredSnapshot(storage?.getItem(WATCH_READING_KEY), now);
-    if (!small) return full;
-    if (!full) return small;
-    if (full.savedAt > small.savedAt) return full;
-    // Use the newest reading and the real, timestamped history saved so far.
-    return { ...small, history: full.history };
+    return parseStoredSnapshot(storage?.getItem(key), now);
   } catch (_) {
     return null;
   }
+}
+
+export function readWatchSnapshot(storage, now = Date.now()) {
+  const full = readStoredKey(storage, WATCH_CACHE_KEY, now);
+  const small = readStoredKey(storage, WATCH_READING_KEY, now);
+  if (!small) return full;
+  if (!full) return small;
+  if (full.savedAt > small.savedAt) return full;
+  // Use the newest reading and the real, timestamped history saved so far.
+  return { ...small, history: full.history };
 }
