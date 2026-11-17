@@ -33,4 +33,5 @@ export function parseGlucoseThresholds(low, high) {
 export function glucoseBand(value, thresholds = { low: DEFAULT_LOW, high: DEFAULT_HIGH }) {
   if (value < thresholds.low) return "low";
   if (value > thresholds.high) return "high";
+  return "target";
 }
