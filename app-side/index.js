@@ -36,7 +36,9 @@ AppSideService(BaseSideService({
       addDiagnostic("REQUEST_FINISHED", "OK");
       const thresholds = parseGlucoseThresholds(
         settings.settingsStorage.getItem("glucose_low") || 80,
-        settings.settingsStorage.getItem("glucose_high") || 160
+        settings.settingsStorage.getItem("glucose_high") || 160,
+        settings.settingsStorage.getItem("glucose_very_low") || 70,
+        settings.settingsStorage.getItem("glucose_very_high") || 240
       );
       res(null, { reading, thresholds });
     } catch (error) {
