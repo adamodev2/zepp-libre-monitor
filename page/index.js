@@ -9,7 +9,7 @@ import { normalizeReading, glucoseBand, parseGlucoseThresholds } from "../shared
 import { chartSegments, chartStrokePixels } from "../shared/chart";
 import { createWatchLayout } from "../shared/watch-layout";
 import { trendArrowPixels } from "../shared/trend-icon";
-import { WATCH_CACHE_KEY, BG_SERVICE_DEBUG_KEY, createWatchSnapshot, readWatchSnapshot } from "../shared/watch-cache";
+import { BG_DIAGNOSTIC_STORAGE_PATH, BG_SERVICE_DEBUG_KEY, createWatchSnapshot, readWatchSnapshot, saveWatchSnapshot } from "../shared/watch-cache";
 
 const device = getDeviceInfo();
 const WIDTH = device.width || 466;
@@ -26,6 +26,8 @@ const MAX_READING_AGE_MS = 15 * 60_000;
 const REQUEST_TIMEOUT_MS = 20_000;
 const BACKGROUND_SERVICE_PATH = "app-service/history-sync";
 const watchStorage = new LocalStorage();
+// Keep background-service log writes separate from the reading cache file.
+const backgroundDiagnosticStorage = new LocalStorage(BG_DIAGNOSTIC_STORAGE_PATH);
 
 function label(frame, color, text, options = {}) {
   return hmUI.createWidget(hmUI.widget.TEXT, {
@@ -163,10 +165,7 @@ Page(BasePage({
     const snapshot = createWatchSnapshot(reading, this.thresholds);
     if (!snapshot) return;
     try {
-      // String serialization makes the persisted format unambiguous.
-      watchStorage.setItem(WATCH_CACHE_KEY, JSON.stringify(snapshot));
-      const checked = readWatchSnapshot(watchStorage);
-      if (!checked || checked.value !== snapshot.value) {
+      if (!saveWatchSnapshot(watchStorage, snapshot)) {
         console.log("[LibreMonitor] WATCH_CACHE_VERIFY_FAILED");
         return;
       }
@@ -274,7 +273,7 @@ Page(BasePage({
     let bgText = Number.isFinite(bgAge) ? Math.round(bgAge) + "m" : "WAIT";
     if (this.backgroundEnabled) {
       try {
-        const diagnostic = watchStorage.getItem(BG_SERVICE_DEBUG_KEY);
+        const diagnostic = backgroundDiagnosticStorage.getItem(BG_SERVICE_DEBUG_KEY);
         if (Number.isFinite(diagnostic?.timestamp) &&
             diagnostic.timestamp >= Date.now() - 20 * 60_000) {
           const codes = {
