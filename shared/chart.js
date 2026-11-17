@@ -28,6 +28,7 @@ export function chartSegments(points, minutes, width, height) {
   const range = Math.max(1, max - min);
   const pos = (point) => ({
     x: Math.round(((minutes - point.ageMinutes) / minutes) * (width - 1)),
+    value: point.value,
     y: Math.round((1 - (point.value - min) / range) * (height - 1)),
   });
 
@@ -64,6 +65,7 @@ export function chartSegments(points, minutes, width, height) {
         lines.push({
           x1: previousDot.x, y1: previousDot.y,
           x2: current.x, y2: current.y,
+          value1: previous.value, value2: valid[i].value,
           dashed,
         });
       }
@@ -95,7 +97,8 @@ export function chartStrokePixels(lines, budget = 160) {
       const y = Math.round(line.y1 + ((line.y2 - line.y1) * i) / steps);
       const key = x + ":" + y;
       if (!seen[key]) {
-        pixels.push({ x, y });
+        pixels.push({ x, y, value: Number.isFinite(line.value1) && Number.isFinite(line.value2)
+          ? line.value1 + (line.value2 - line.value1) * (i / steps) : null });
         seen[key] = true;
       }
     }
