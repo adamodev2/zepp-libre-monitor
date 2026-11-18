@@ -44,3 +44,11 @@ test("shares at most one actual point per five-minute interval over six hours", 
   assert.ok(data.points.some(([time]) => time < NOW - 300 * 60_000));
   assert.ok(data.points.some(([time]) => time > NOW - 5 * 60_000));
 });
+
+test("shared record includes the publication timestamp independently from measurement time", () => {
+  const result = createWatchfacePayload({
+    timestamp: NOW - 10 * 60_000, savedAt: NOW - 30_000, value: 110, history: [],
+  }, NOW);
+  assert.equal(result.publishedAt, NOW);
+  assert.equal(result.timestamp, NOW - 10 * 60_000);
+});
