@@ -271,7 +271,11 @@ Page(BasePage({
   updateHistoryStatus() {
     if (!this.status || !Number.isFinite(this.lastLiveAgeMinutes)) return;
     const graphAge = this.historyMeta?.graphAgeMinutes;
-    const bgAge = this.historyMeta?.backgroundSyncAgeMinutes;
+    const backgroundSnapshot = readBackgroundSnapshot(new LocalStorage(BG_SNAPSHOT_STORAGE_PATH));
+    // Only watch-side persisted data proves a background result was received.
+    const bgAge = backgroundSnapshot
+      ? Math.max(0, Math.floor((Date.now() - backgroundSnapshot.savedAt) / 60_000))
+      : null;
     const live = "LIVE " + this.lastLiveAgeMinutes + "m";
     const graph = "GRAPH " + (Number.isFinite(graphAge) ? Math.round(graphAge) + "m" : "N/A");
     let bgText = Number.isFinite(bgAge) ? Math.round(bgAge) + "m" : "WAIT";
