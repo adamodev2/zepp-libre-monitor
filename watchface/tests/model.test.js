@@ -58,3 +58,15 @@ test("watchface declares separate normal and AOD display levels", async () => {
   assert.match(source, /this\.clock\.onPerMinute/);
   assert.match(source, /this\.refreshAod\(reading\)/);
 });
+
+test("publication age is separate from glucose measurement age", () => {
+  const reading = parseGlucoseSnapshot({
+    version: 1,
+    value: 123,
+    timestamp: NOW - 12 * 60_000,
+    publishedAt: NOW - 3 * 60_000,
+    points: [],
+  }, NOW);
+  assert.equal(reading.ageMinutes, 12);
+  assert.equal(reading.publishAgeMinutes, 3);
+});
