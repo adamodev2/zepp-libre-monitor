@@ -2,6 +2,7 @@ import { ShareTypedStorage } from "@zos/storage";
 import {
   WATCHFACE_SHARED_SCOPE,
   WATCHFACE_SHARED_KEY,
+  WATCHFACE_RANGE_KEY,
   createWatchfacePayload,
 } from "./watchface-data";
 
@@ -17,6 +18,17 @@ export function publishWatchfaceSnapshot(snapshot) {
     return true;
   } catch (_) {
     console.log("[LibreMonitor] WATCHFACE_SHARE_UNAVAILABLE");
+    return false;
+  }
+}
+
+export function publishWatchfaceChartRange(minutes) {
+  if (minutes !== 120 && minutes !== 360) return false;
+  try {
+    new ShareTypedStorage(WATCHFACE_SHARED_SCOPE).putInt(WATCHFACE_RANGE_KEY, minutes);
+    return true;
+  } catch (_) {
+    console.log("[LibreMonitor] WATCHFACE_RANGE_SHARE_UNAVAILABLE");
     return false;
   }
 }
