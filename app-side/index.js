@@ -40,7 +40,14 @@ AppSideService(BaseSideService({
         if (Number.isFinite(reading.ageMs) && reading.ageMs >= -60_000 && reading.ageMs <= 15 * 60_000) {
           markBackgroundSync(settings.settingsStorage, sha256(email.trim().toLowerCase()));
           addDiagnostic("BACKGROUND_SUCCESS");
-          res(null, { ok: true });
+          // Return the measurement to the watch service: metadata alone cannot
+          // populate the screen or bridge the offline gap.
+          res(null, { ok: true, reading: {
+            value: reading.value,
+            trend: reading.trend,
+            ageMs: reading.ageMs,
+            history: Array.isArray(reading.history) ? reading.history.slice(-90) : [],
+          } });
         } else {
           addDiagnostic("BACKGROUND_STALE");
           res(null, { ok: false });
