@@ -15,6 +15,11 @@ export function parseGlucoseSnapshot(raw, now = Date.now()) {
       value: Math.round(data.value),
       trend: Number.isInteger(data.trend) && data.trend >= 1 && data.trend <= 5 ? data.trend : 0,
       timestamp: data.timestamp,
+      publishedAt: Number.isFinite(data.publishedAt) &&
+        data.publishedAt <= now + 60_000 ? data.publishedAt : null,
+      publishAgeMinutes: Number.isFinite(data.publishedAt) &&
+        data.publishedAt <= now + 60_000 ?
+          Math.max(0, Math.floor((now - data.publishedAt) / 60_000)) : null,
       ageMinutes: Math.max(0, Math.floor((now - data.timestamp) / 60_000)),
       low: Number.isFinite(data.low) ? data.low : 80,
       high: Number.isFinite(data.high) ? data.high : 160,
