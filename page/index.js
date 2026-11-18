@@ -8,6 +8,7 @@ import { BasePage } from "@zeppos/zml/base-page";
 import { normalizeReading, glucoseBand, parseGlucoseThresholds } from "../shared/glucose";
 import { chartSegments, chartStrokePixels } from "../shared/chart";
 import { createWatchLayout } from "../shared/watch-layout";
+import { publishWatchfaceSnapshot } from "../shared/watchface-publisher";
 import { trendArrowPixels } from "../shared/trend-icon";
 import { BG_DIAGNOSTIC_STORAGE_PATH, BG_SERVICE_DEBUG_KEY, BG_SNAPSHOT_STORAGE_PATH, createWatchSnapshot, readWatchSnapshot, readBackgroundSnapshot, saveWatchSnapshot, readChartRange, saveChartRange } from "../shared/watch-cache";
 
@@ -176,6 +177,8 @@ Page(BasePage({
     const snapshot = createWatchSnapshot(reading, this.thresholds);
     if (!snapshot) return;
     try {
+      // Publish the same verified glucose data for the read-only watch face.
+      publishWatchfaceSnapshot(snapshot);
       if (!saveWatchSnapshot(watchStorage, snapshot)) {
         console.log("[LibreMonitor] WATCH_CACHE_VERIFY_FAILED");
         return;
