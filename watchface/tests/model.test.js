@@ -76,7 +76,7 @@ test("watchface requires confirmed wear and reacts to screen changes", async () 
   const { readFileSync } = await import("node:fs");
   const source = readFileSync(new URL("../watchface/index.js", import.meta.url), "utf8");
   assert.match(source, /new Wear\(\)/);
-  assert.match(source, /return status === 1;/);
+  assert.match(source, /return this\.readWearStatus\(\) === 1;/);
   assert.doesNotMatch(source, /\.getLast\(\)/);
   assert.match(source, /new Screen\(\)/);
   assert.match(source, /this\.screen\.onChange/);
