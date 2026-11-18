@@ -1,0 +1,34 @@
+name: Watchface MVP
+
+on:
+  push:
+    branches:
+      - feat/glucose-watchface-mvp
+  pull_request:
+    paths:
+      - "watchface/**"
+      - "shared/watchface-*"
+      - "page/index.js"
+      - "app-service/history-sync.js"
+      - ".github/workflows/watchface-mvp.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate Mini App
+        run: |
+          npm install --no-audit --no-fund
+          npm run check
+          npm test
+      - name: Validate Watchface
+        working-directory: watchface
+        run: |
+          npm install --no-audit --no-fund
+          npm run check
+          npm test
+          npm run build
