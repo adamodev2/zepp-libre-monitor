@@ -1,5 +1,6 @@
 export const WATCH_CACHE_KEY = "libre_watch_snapshot_v1";
 export const WATCH_READING_KEY = "libre_watch_reading_v1";
+export const CHART_RANGE_KEY = "libre_chart_range_minutes_v1";
 export const BG_DIAGNOSTIC_STORAGE_PATH = "libre-bg-diagnostics";
 export const BG_SERVICE_DEBUG_KEY = "libre_bg_service_debug_v1";
 export const BG_SNAPSHOT_STORAGE_PATH = "libre-background-reading";
@@ -100,4 +101,22 @@ export function readWatchSnapshot(storage, now = Date.now()) {
 // snapshots. Only valid Libre measurements may be restored.
 export function readBackgroundSnapshot(storage, now = Date.now()) {
   return readStoredKey(storage, BG_SNAPSHOT_KEY, now);
+}
+
+export function readChartRange(storage) {
+  try {
+    return Number(storage?.getItem(CHART_RANGE_KEY)) === 360 ? 360 : 120;
+  } catch (_) {
+    return 120;
+  }
+}
+
+export function saveChartRange(storage, minutes) {
+  if (minutes !== 120 && minutes !== 360) return false;
+  try {
+    storage.setItem(CHART_RANGE_KEY, minutes);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
