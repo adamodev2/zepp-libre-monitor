@@ -64,7 +64,15 @@ Keep the Mini App's appId (1092841) unchanged.
 
 ## AOD test
 
-After the watch dims, make sure the system AOD setting is set to follow the
-current watch face. Glucose should remain visible with its measurement age.
-AOD refresh frequency and visibility are subject to device power settings.
+After the watch dims, make sure the watch system uses **Always-On Display >
+Style > Follow current watch face** (exact menu names can vary by firmware).
+If the watch uses a system default AOD style, the custom glucose AOD layout
+will not appear even when it is correctly installed.
+
+AOD elements have explicit Zepp `show_level.ONAL_AOD`, and normal widgets
+are marked `show_level.ONLY_NORMAL`. The watchface re-reads the glucose
+snapshot on its minute event and on UI resume. The operating system may
+still defer JavaScript updates during screen-off or low-power modes; test
+the age before and after wake, and do not interpret AOD values as continuous
+or alarm-grade glucose monitoring.
 The CGM values on AOD are informational only, not alarm data.
