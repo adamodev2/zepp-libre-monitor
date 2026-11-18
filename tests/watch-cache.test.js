@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WATCH_CACHE_KEY, WATCH_READING_KEY, createWatchSnapshot, readWatchSnapshot, saveWatchSnapshot } from "../shared/watch-cache.js";
+import { WATCH_CACHE_KEY, WATCH_READING_KEY, BG_SNAPSHOT_KEY, createWatchSnapshot, readWatchSnapshot, readBackgroundSnapshot, saveWatchSnapshot } from "../shared/watch-cache.js";
 
 function storage() {
   const memory = new Map();
@@ -124,4 +124,28 @@ test("uses compact snapshot when reading full history throws", () => {
   const restored = readWatchSnapshot(store, now + 60_000);
   assert.equal(restored.value, 138);
   assert.equal(restored.ageMinutes, 1);
+});
+
+test("background snapshot restores fresh glucose independently of foreground cache", () => {
+  const now = Date.parse("2026-11-17T15:00:00Z");
+  const store = storage();
+  const snapshot = createWatchSnapshot({
+    value: 145, ageMs: 60_000, trend: 3,
+    history: [{ value: 145, ageMinutes: 1 }],
+  }, null, now);
+  store.setItem(BG_SNAPSHOT_KEY, JSON.stringify(snapshot));
+  const restored = readBackgroundSnapshot(store, now + 2 * 60_000);
+  assert.equal(restored.value, 145);
+  assert.equal(restored.ageMinutes, 3);
+  assert.equal(restored.history[0].ageMinutes, 3);
+});
+
+test("background cache rejects malformed and expired readings", () => {
+  const now = Date.parse("2026-11-17T15:00:00Z");
+  const store = storage();
+  store.setItem(BG_SNAPSHOT_KEY, '{"version":1,"value":999}');
+  assert.equal(readBackgroundSnapshot(store, now), null);
+  const old = createWatchSnapshot({ value: 120, ageMs: 0 }, null, now - 7 * 60 * 60_000);
+  store.setItem(BG_SNAPSHOT_KEY, JSON.stringify(old));
+  assert.equal(readBackgroundSnapshot(store, now), null);
 });
