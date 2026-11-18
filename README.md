@@ -31,7 +31,7 @@ This is a **work in progress under active development**, not a finished or medic
 | Solid connections up to 20-minute gaps, dashed connections for 21–30 minutes, disconnection above 30 minutes | Implemented; missing measurements are never recreated |
 | Account settings and diagnostic events in Zepp | Implemented |
 | In-memory login session reuse (up to 45 minutes) | Implemented; may re-authenticate when the phone service restarts |
-| Background collection after closing the foreground app | **Not included in this MVP branch** |
+| Optional background synchronization and persisted six-hour history | **Experimental; not yet confirmed to fetch while app is closed** |
 | Live glucose on a watch face / always-on display | **Not implemented** |
 | Glucose alarms, insulin calculations or treatment advice | **Not implemented** |
 
@@ -48,8 +48,7 @@ If you already have a Codespace for this repository:
 
 ```bash
 git fetch origin
-git switch feat/active2-readable-layout
-git pull
+git switch --detach origin/feat/background-glucose-history
 npm install --no-audit --no-fund
 npm run zepp:login
 npm run preview
@@ -78,19 +77,17 @@ Settings also provide **Diagnostics (select and copy text)**, **Clear diagnostic
 
 **Do not paste your password, Abbott auth token, full request logs or account identifiers into GitHub issues.** Use only sanitized diagnostic event codes when reporting a problem.
 
-## Native trend arrow rendering
-
-On some physical Amazfit Active 2 watches, Unicode trend glyphs (especially upward arrows) display as white replacement squares. Trend directions are now drawn using native Zepp UI rectangles instead of Unicode characters. The five LibreLinkUp trend directions remain unchanged. The arrow uses the **same configurable red/yellow/green color as the glucose reading** and is redrawn when either the direction or the glucose band changes. A neutral dot indicates an unknown trend.
-
 ## Using the watch
 
 - **Large number:** latest glucose in **mg/dL**; green from 80 to 160 mg/dL, yellow from 70–79 or 161–240 mg/dL, and red below 70 or above 240 mg/dL (all thresholds adjustable).
 - **Color range:** in Zepp > Libre Monitor > Settings, edit Very Low, Low, High, and Very High glucose thresholds. Defaults are 70, 80, 160, and 240 mg/dL respectively. The current number, trend arrow, actual history dots, and line pixels are red outside the extremes, yellow outside the green range, and green inside the Low/High boundaries. Invalid/reversed limits fall back to defaults. This is a visual distinction only, not a glucose alert.
-- **Arrow:** direction reported by LibreLinkUp; `·` means unavailable/unknown.
+- **Arrow:** all five directions are drawn using native Zepp shapes, not Unicode text. Arrow color follows the current glucose band; a muted dot means unavailable/unknown.
 - **`LibreLinkUp · Xm ago`:** age of the **current reading**, measured using the phone clock. Readings older than **15 minutes** are rejected.
 - **`2h / 6h`:** switch the chart time window. It displays at most one real recorded observation per five-minute bucket, not a prediction or interpolated value.
 - **`GAP Nm`:** largest interval of over 20 minutes between adjacent displayed observations. A **dashed line** connects actual points across 21–30 minutes; a longer break stays unconnected.
 - **`Refresh`:** request a new value manually and reload the current color thresholds.
+- **`BG OFF / BG ON`:** enable/disable experimental background sync. `BG ON` means the service is active, not that data collection has succeeded.
+- **`LIVE Xm · GRAPH Ym · BG Zm`:** age of live reading, newest Abbott graph record, and last successful background fetch. `BG WAIT` means none has succeeded.
 
 The **current glucose** comes from LibreLinkUp's connection measurement. The **history** comes from a separate `/llu/connections/{patientId}/graph` request and from real observations collected while the app is running. Abbott may return sparse or delayed history even when the latest glucose is fresh. The chart cannot reconstruct readings that were never received.
 
@@ -123,6 +120,29 @@ Libre sensor -> official Libre cloud / LibreLinkUp
 | Different chart or controls than expected | Check the active Git branch, run `git pull`, generate a **new** preview QR and reinstall. |
 
 If the phone service fails to start, look for `[LibreMonitor] SIDE_SERVICE_INITIALIZED` in Zepp developer logs. Its absence suggests a Zepp service/module issue rather than proof of failed Abbott authentication.
+
+## Offline startup cache
+
+The watch stores the last successfully received glucose reading, its original timestamp, thresholds, and up to six hours of timestamped chart points in Zepp's watch-local storage. When reopening the app it immediately shows that saved snapshot with a **CACHED Xm** label while a fresh LibreLinkUp request is underway. Cached data is **not a new measurement** and can be old; failure to connect leaves a **CACHED** label and never silently represents an old reading as live. The cache is refreshed only after successful, fresh live readings and is removed with app uninstallation. This is separate from phone-side background synchronization, and does **not** demonstrate that a background request succeeded. Avoid sharing this watch with other users because its stored measurements are sensitive personal information.
+
+## Cache verification after preview installation
+
+Installing a new QR preview can start with no watch-local cache. **Do not judge offline restore on the first launch after installing a preview.** Open Libre Monitor, wait until a fresh number and chart have appeared, then close the watch app and reopen **without installing another QR code**. The next launch should immediately show `CACHED Xm` and previously saved measurements while connecting.
+
+If it remains blank, check watch developer logs for `WATCH_CACHE_SAVED`, `WATCH_CACHE_VERIFY_FAILED`, or `WATCH_CACHE_WRITE_FAILED` before reinstalling. Cache storage is sensitive personal data and does not prove that background sync is working.
+
+## Background sync: device test checklist
+
+This branch is rebased on the latest `main`, including PR #7 native arrows without unsupported Unicode glyphs. It retains the four customizable thresholds, readable layout, and chart color rendering.
+
+1. Use the QR preview for `feat/background-glucose-history`.
+2. Open Libre Monitor, check the normal glucose reading and the yellow/green/red thresholds. Close and immediately reopen it; the last reading and chart should show as **CACHED Xm** before the new network response arrives.
+3. Tap **BG OFF**, grant background-service permission on the watch, and verify the button changes to **BG ON**.
+4. Close Libre Monitor completely. Keep the watch paired and Zepp running on the phone.
+5. After **15–20 minutes**, reopen Libre Monitor. Check `BG Xm` and the six-hour chart. **BG WAIT** indicates no successful background phone fetch. Other device-side indicators can help diagnose failures: **BG NO LINK** (the App Service has no phone request bridge), **BG REQUEST** (attempt made), **BG FAILED** (request failed), **BG NO DATA** (request did not report success), **BG STARTED** (service started but no successful fetch yet).
+6. In Zepp app settings, inspect sanitized diagnostics for `BACKGROUND_REQUEST`, `BACKGROUND_SUCCESS`, `BACKGROUND_FAILURE`, or `BACKGROUND_STALE`. Never share credentials, account IDs, or tokens.
+
+The watch App Service attempts a background phone request approximately every five minutes, subject to Zepp OS and Android restrictions. The service may start without its request bridge working; a successful build and permission grant do not confirm real background updates. Persisted glucose history is stored in Zepp Settings Storage on the phone; verified at-rest encryption is not available. This is **not** an alarm system or medical device. Keep official Libre notifications enabled.
 
 ## Privacy and technical limitations
 

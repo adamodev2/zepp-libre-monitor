@@ -131,3 +131,56 @@ test("reauthenticates once on an expired bearer token", async () => {
   assert.equal(result.value, 124);
   assert.equal(calls.filter((call) => call.url.endsWith("/llu/auth/login")).length, 2);
 });
+
+test("restores persisted graph samples when Side Service restarts and graph fetch fails", async () => {
+  const saved = new Map();
+  const storage = {
+    getItem(key) { return saved.get(key) || null; },
+    setItem(key, value) { saved.set(key, value); },
+  };
+  const recentTimestamp = new Date(Date.now() - 5 * 60_000).toISOString();
+  const withPatient = {
+    data: [{
+      patientId: "11111111-1111-1111-1111-111111111111",
+      glucoseMeasurement: reading.data[0].glucoseMeasurement,
+    }],
+  };
+  mockFetch([
+    { body: login },
+    { body: withPatient },
+    { body: { data: { graphData: [{ FactoryTimestamp: recentTimestamp, ValueInMgPerDl: 133 }] } } },
+  ]);
+  const first = await getGlucose("sample@example.invalid", "secret", () => {}, storage);
+  assert.equal(first.history.length, 1);
+  assert.ok(first.historyMeta.graphAgeMinutes >= 4);
+
+  resetSession();
+  mockFetch([
+    { body: login },
+    { body: withPatient },
+    { http: 503, body: {} },
+  ]);
+  const restored = await getGlucose("sample@example.invalid", "secret", () => {}, storage);
+  assert.deepEqual(restored.history.map((point) => point.value), [133]);
+  assert.equal(restored.historyMeta.graphAgeMinutes, null);
+});
+
+test("latest Abbott graph age remains distinct from current measurement age", async () => {
+  const current = new Date(Date.now() - 60_000).toISOString();
+  const historical = new Date(Date.now() - 21 * 60_000).toISOString();
+  const connection = {
+    data: [{
+      patientId: "11111111-1111-1111-1111-111111111111",
+      glucoseMeasurement: { Value: 125, TrendArrow: 3, FactoryTimestamp: current },
+    }],
+  };
+  mockFetch([
+    { body: login },
+    { body: connection },
+    { body: { data: { graphData: [{ FactoryTimestamp: historical, ValueInMgPerDl: 118 }] } } },
+  ]);
+  const result = await getGlucose("sample@example.invalid", "secret");
+  assert.ok(result.ageMs < 2 * 60_000);
+  assert.ok(result.historyMeta.graphAgeMinutes >= 20);
+  assert.ok(result.historyMeta.graphAgeMinutes <= 22);
+});
