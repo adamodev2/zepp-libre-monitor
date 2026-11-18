@@ -1,4 +1,4 @@
-export const CHART_MINUTES = 120;
+export const DEFAULT_CHART_MINUTES = 360;
 export const STALE_AFTER_MINUTES = 15;
 const MAX_AGE_MS = 6 * 60 * 60_000;
 
@@ -39,9 +39,10 @@ export function readingColor(reading) {
   return 0x41d98a;
 }
 
-export function chartCoordinates(reading, now, width, height) {
+export function chartCoordinates(reading, now, width, height, minutes = DEFAULT_CHART_MINUTES) {
   if (!reading) return [];
-  const start = now - CHART_MINUTES * 60_000;
+  const windowMinutes = minutes === 120 ? 120 : 360;
+  const start = now - windowMinutes * 60_000;
   const history = reading.points.filter((p) =>
     p.timestamp >= start && p.timestamp <= now + 60_000);
   if (history.length === 0) return [];
@@ -49,7 +50,7 @@ export function chartCoordinates(reading, now, width, height) {
   const max = Math.min(500, Math.max(...history.map((p) => p.value)) + 15);
   const span = Math.max(30, max - min);
   return history.map((p) => ({
-    x: Math.max(0, Math.min(width - 1, Math.round(((p.timestamp - start) / (CHART_MINUTES * 60_000)) * (width - 1)))),
+    x: Math.max(0, Math.min(width - 1, Math.round(((p.timestamp - start) / (windowMinutes * 60_000)) * (width - 1)))),
     y: Math.max(0, Math.min(height - 1, Math.round(((max - p.value) / span) * (height - 1)))),
     timestamp: p.timestamp,
     value: p.value,
