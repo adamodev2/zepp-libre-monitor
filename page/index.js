@@ -9,7 +9,7 @@ import { normalizeReading, glucoseBand, parseGlucoseThresholds } from "../shared
 import { chartSegments, chartStrokePixels } from "../shared/chart";
 import { createWatchLayout } from "../shared/watch-layout";
 import { trendArrowPixels } from "../shared/trend-icon";
-import { BG_DIAGNOSTIC_STORAGE_PATH, BG_SERVICE_DEBUG_KEY, createWatchSnapshot, readWatchSnapshot, saveWatchSnapshot } from "../shared/watch-cache";
+import { BG_DIAGNOSTIC_STORAGE_PATH, BG_SERVICE_DEBUG_KEY, BG_SNAPSHOT_STORAGE_PATH, createWatchSnapshot, readWatchSnapshot, readBackgroundSnapshot, saveWatchSnapshot } from "../shared/watch-cache";
 
 const device = getDeviceInfo();
 const WIDTH = device.width || 466;
@@ -27,7 +27,8 @@ const REQUEST_TIMEOUT_MS = 20_000;
 const BACKGROUND_SERVICE_PATH = "app-service/history-sync";
 const watchStorage = new LocalStorage();
 // Keep background-service log writes separate from the reading cache file.
-const backgroundDiagnosticStorage = new LocalStorage(BG_DIAGNOSTIC_STORAGE_PATH);
+// Re-open background files on every UI launch: each LocalStorage instance caches
+// its loaded contents and may miss writes from a separate AppService process.
 
 function label(frame, color, text, options = {}) {
   return hmUI.createWidget(hmUI.widget.TEXT, {
@@ -148,7 +149,10 @@ Page(BasePage({
       this.hasCachedSnapshot ? "CACHED · " + String(message).slice(0, 29) : String(message).slice(0, 46));
   },
   restoreWatchSnapshot() {
-    const cached = readWatchSnapshot(watchStorage);
+    const foreground = readWatchSnapshot(watchStorage);
+    const background = readBackgroundSnapshot(new LocalStorage(BG_SNAPSHOT_STORAGE_PATH));
+    const cached = background && (!foreground || background.timestamp > foreground.timestamp)
+      ? background : foreground;
     if (!cached) return;
     this.hasCachedSnapshot = true;
     this.thresholds = parseGlucoseThresholds(
@@ -273,7 +277,7 @@ Page(BasePage({
     let bgText = Number.isFinite(bgAge) ? Math.round(bgAge) + "m" : "WAIT";
     if (this.backgroundEnabled) {
       try {
-        const diagnostic = backgroundDiagnosticStorage.getItem(BG_SERVICE_DEBUG_KEY);
+        const diagnostic = new LocalStorage(BG_DIAGNOSTIC_STORAGE_PATH).getItem(BG_SERVICE_DEBUG_KEY);
         if (Number.isFinite(diagnostic?.timestamp) &&
             diagnostic.timestamp >= Date.now() - 20 * 60_000) {
           const codes = {
@@ -284,6 +288,10 @@ Page(BasePage({
             STARTED: "STARTED",
             TIMEOUT: "TIMEOUT",
             OK: "OK",
+            SAVED: "SAVED",
+            SAVE_FAILED: "SAVE ERR",
+            INVALID_DATA: "BAD DATA",
+            TICK: "TICK",
           };
           if (!Number.isFinite(bgAge)) bgText = codes[diagnostic.state] || bgText;
         }
