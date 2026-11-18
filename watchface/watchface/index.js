@@ -23,9 +23,9 @@ const TREND_DIRECTIONS = {
   1: [0, 1], 2: [1, 1], 3: [1, 0], 4: [1, -1], 5: [0, -1],
 };
 
-function addText(x, y, w, h, size, color, text) {
+function addText(x, y, w, h, size, color, text, showLevel = hmUI.show_level.ONLY_NORMAL) {
   return hmUI.createWidget(hmUI.widget.TEXT, {
-    x, y, w, h, color, text_size: size,
+    x, y, w, h, color, text_size: size, show_level: showLevel,
     align_h: hmUI.align.CENTER_H,
     align_v: hmUI.align.CENTER_V,
     text_style: hmUI.text_style.NONE,
@@ -52,7 +52,9 @@ function drawLinePixels(draw, x1, y1, x2, y2, color) {
   for (let i = 0; i <= steps; i++) {
     const x = Math.round(x1 + (x2 - x1) * i / steps);
     const y = Math.round(y1 + (y2 - y1) * i / steps);
-    draw(hmUI.widget.FILL_RECT, { x, y, w: 4, h: 4, color });
+    draw(hmUI.widget.FILL_RECT, {
+      x, y, w: 4, h: 4, color, show_level: hmUI.show_level.ONLY_NORMAL,
+    });
   }
 }
 
@@ -74,46 +76,54 @@ WatchFace({
   },
 
   build() {
+    // Zepp uses widget show_level to select the normal vs. AOD view.
+    // A getScene() branch during build is not sufficient when the screen dims.
     hmUI.createWidget(hmUI.widget.FILL_RECT, {
-      x: 0, y: 0, w: 466, h: 466, color: 0x050b12,
+      x: 0, y: 0, w: 466, h: 466,
+      color: 0x050b12, show_level: hmUI.show_level.ONLY_NORMAL,
     });
-    if (getScene() === SCENE_AOD) {
-      // Dedicated low-power face: preserve clock and glucose on screen-off.
-      // There is no HR sensor polling or full chart in AOD mode.
-      this.aodOnly = true;
-      this.timeText = addText(43, 102, 380, 122, 109, WHITE, "--:--");
-      this.dateText = addText(91, 227, 284, 37, 30, MUTED, "--.--.----");
-      this.glucoseText = addText(108, 273, 250, 77, 69, WHITE, "--");
-      this.ageText = addText(83, 350, 300, 34, 25, MUTED, "NO CGM DATA");
-      this.refreshAod();
-      this.clock.onPerMinute(() => {
-        if (!this.destroyed) this.refreshAod();
-      });
-      return;
-    }
+    hmUI.createWidget(hmUI.widget.FILL_RECT, {
+      x: 0, y: 0, w: 466, h: 466,
+      color: 0x000000, show_level: hmUI.show_level.ONAL_AOD,
+    });
 
-    // Dominant watch time; glucose is the secondary focal point.
+    // Normal face: time is dominant; glucose remains secondary.
     this.timeText = addText(39, 49, 388, 123, 114, WHITE, "--:--");
     this.dateText = addText(90, 170, 286, 33, 30, MUTED, "--.--.----");
-
     this.glucoseText = addText(111, 204, 235, 75, 72, WHITE, "--");
     this.unitsText = addText(134, 266, 198, 27, 26, MUTED, "mg/dL");
     this.ageText = addText(108, 292, 250, 29, 25, MUTED, "NO CGM DATA");
-
     this.chartLabel = addText(102, 318, 262, 25, 23, MUTED, "GLUCOSE · 6H");
     hmUI.createWidget(hmUI.widget.FILL_RECT, {
-      x: GRAPH_X, y: GRAPH_Y + GRAPH_H - 1, w: GRAPH_W, h: 1, color: FAINT,
+      x: GRAPH_X, y: GRAPH_Y + GRAPH_H - 1,
+      w: GRAPH_W, h: 1, color: FAINT,
+      show_level: hmUI.show_level.ONLY_NORMAL,
     });
-
     this.heartText = addText(84, 400, 148, 37, 30, WHITE, "-- BPM");
     this.batteryText = addText(235, 400, 147, 37, 30, WHITE, "--%");
 
+    // Lightweight AOD view; Zepp displays these widgets only when resting.
+    // The OS must also be configured to follow the current watch face.
+    const aod = hmUI.show_level.ONAL_AOD;
+    this.aodTimeText = addText(83, 120, 300, 95, 87, WHITE, "--:--", aod);
+    this.aodDateText = addText(98, 215, 270, 34, 25, MUTED, "--.--.----", aod);
+    this.aodGlucoseText = addText(129, 269, 208, 74, 66, WHITE, "--", aod);
+    this.aodAgeText = addText(85, 344, 296, 33, 23, MUTED, "NO CGM DATA", aod);
+
+    // Refresh whenever UI returns from another screen; the minute callback
+    // also refreshes the independent AOD instance where supported.
+    hmUI.createWidget(hmUI.widget.WIDGET_DELEGATE, {
+      resume_call: () => {
+        if (!this.destroyed) this.refresh();
+      },
+      pause_call: () => {},
+    });
+
     this.refresh();
-    // getLast() can be an old value, so only report a fresh sensor callback.
     if (this.heart) {
       try {
         this.heartCallback = () => {
-          if (this.destroyed || this.aodOnly) return;
+          if (this.destroyed || getScene() === SCENE_AOD) return;
           const bpm = Number(this.heart.getCurrent());
           if (Number.isFinite(bpm) && bpm >= 35 && bpm <= 230) {
             this.currentBpm = Math.round(bpm);
@@ -166,13 +176,13 @@ WatchFace({
     for (const point of linePixels(points)) {
       this.chartWidgets.push(hmUI.createWidget(hmUI.widget.FILL_RECT, {
         x: GRAPH_X + point.x, y: GRAPH_Y + point.y,
-        w: 3, h: 3, color,
+        w: 3, h: 3, color, show_level: hmUI.show_level.ONLY_NORMAL,
       }));
     }
     for (const point of points) {
       this.chartWidgets.push(hmUI.createWidget(hmUI.widget.CIRCLE, {
         center_x: GRAPH_X + point.x, center_y: GRAPH_Y + point.y,
-        radius: 2, color,
+        radius: 2, color, show_level: hmUI.show_level.ONLY_NORMAL,
       }));
     }
   },
@@ -200,25 +210,30 @@ WatchFace({
       fresh ? String(this.currentBpm) + " BPM" : "-- BPM");
   },
 
-  refreshAod() {
-    this.timeText.setProperty(hmUI.prop.TEXT, formatTime(this.clock));
-    this.dateText.setProperty(hmUI.prop.TEXT, formatDate(this.clock));
-    const reading = this.getGlucose();
-    this.glucoseText.setProperty(hmUI.prop.TEXT, reading ? String(reading.value) : "--");
-    this.glucoseText.setProperty(hmUI.prop.COLOR, readingColor(reading));
-    this.ageText.setProperty(hmUI.prop.TEXT, !reading ? "NO CGM DATA" :
-      (reading.ageMinutes > STALE_AFTER_MINUTES ?
+  refreshAod(reading) {
+    this.aodTimeText.setProperty(hmUI.prop.TEXT, formatTime(this.clock));
+    this.aodDateText.setProperty(hmUI.prop.TEXT, formatDate(this.clock));
+    this.aodGlucoseText.setProperty(hmUI.prop.TEXT,
+      reading ? String(reading.value) : "--");
+    this.aodGlucoseText.setProperty(hmUI.prop.COLOR, readingColor(reading));
+    this.aodAgeText.setProperty(hmUI.prop.TEXT, !reading ? "NO CGM DATA" :
+      reading.ageMinutes > STALE_AFTER_MINUTES ?
         "STALE " + reading.ageMinutes + "m · mg/dL" :
-        reading.ageMinutes + "m · mg/dL"));
-    hmUI.redraw();
+        reading.ageMinutes + "m · mg/dL");
   },
 
   refresh() {
     const now = this.clock.getTime();
+    const reading = this.getGlucose();
+    // Update AOD widgets from the same shared glucose record, not a separate
+    // launch-only scene. Explicitly re-read on every minute callback.
+    this.refreshAod(reading);
+    if (getScene() === SCENE_AOD) {
+      hmUI.redraw();
+      return;
+    }
     this.timeText.setProperty(hmUI.prop.TEXT, formatTime(this.clock));
     this.dateText.setProperty(hmUI.prop.TEXT, formatDate(this.clock));
-
-    const reading = this.getGlucose();
     const color = readingColor(reading);
     this.glucoseText.setProperty(hmUI.prop.TEXT, reading ? String(reading.value) : "--");
     this.glucoseText.setProperty(hmUI.prop.COLOR, color);
