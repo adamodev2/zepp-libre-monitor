@@ -3,20 +3,22 @@ import { Time, Battery, HeartRate } from "@zos/sensor";
 import { TypedStorage } from "@zos/share-storage";
 import { getScene, SCENE_AOD } from "@zos/app";
 import {
-  CHART_MINUTES, STALE_AFTER_MINUTES, parseGlucoseSnapshot,
+  STALE_AFTER_MINUTES, parseGlucoseSnapshot,
   readingColor, chartCoordinates, linePixels,
 } from "../lib/model";
 
 const APP_ID = 1092841;
 const SHARED_SCOPE = "libre-glucose-face-v1";
 const SHARED_KEY = "snapshot";
+const CHART_RANGE_KEY = "chart_range_minutes";
+const HR_MAX_AGE_MS = 2 * 60_000;
 const WHITE = 0xffffff;
 const MUTED = 0xa7b3be;
 const FAINT = 0x536574;
 const GRAPH_X = 82;
-const GRAPH_Y = 315;
+const GRAPH_Y = 335;
 const GRAPH_W = 302;
-const GRAPH_H = 60;
+const GRAPH_H = 59;
 const TREND_DIRECTIONS = {
   1: [0, 1], 2: [1, 1], 3: [1, 0], 4: [1, -1], 5: [0, -1],
 };
@@ -65,6 +67,10 @@ WatchFace({
     this.trendWidgets = [];
     this.lastRaw = "";
     this.destroyed = false;
+    this.heartCallback = null;
+    this.currentBpm = null;
+    this.bpmMeasuredAt = 0;
+    this.chartMinutes = 360;
   },
 
   build() {
@@ -72,35 +78,54 @@ WatchFace({
       x: 0, y: 0, w: 466, h: 466, color: 0x050b12,
     });
     if (getScene() === SCENE_AOD) {
-      // Minimal low-power scene. Glucose is not used as an AOD alarm.
+      // Dedicated low-power face: preserve clock and glucose on screen-off.
+      // There is no HR sensor polling or full chart in AOD mode.
       this.aodOnly = true;
-      this.timeText = addText(65, 165, 336, 93, 83, WHITE, formatTime(this.clock));
-      this.dateText = addText(100, 261, 266, 36, 25, MUTED, formatDate(this.clock));
+      this.timeText = addText(43, 102, 380, 122, 109, WHITE, "--:--");
+      this.dateText = addText(91, 227, 284, 37, 30, MUTED, "--.--.----");
+      this.glucoseText = addText(108, 273, 250, 77, 69, WHITE, "--");
+      this.ageText = addText(83, 350, 300, 34, 25, MUTED, "NO CGM DATA");
+      this.refreshAod();
       this.clock.onPerMinute(() => {
-        if (this.destroyed) return;
-        this.timeText.setProperty(hmUI.prop.TEXT, formatTime(this.clock));
-        this.dateText.setProperty(hmUI.prop.TEXT, formatDate(this.clock));
+        if (!this.destroyed) this.refreshAod();
       });
       return;
     }
 
-    this.timeText = addText(55, 28, 356, 97, 88, WHITE, "--:--");
-    this.dateText = addText(90, 119, 286, 33, 25, MUTED, "--.--.----");
+    // Dominant watch time; glucose is the secondary focal point.
+    this.timeText = addText(39, 49, 388, 123, 114, WHITE, "--:--");
+    this.dateText = addText(90, 170, 286, 33, 30, MUTED, "--.--.----");
 
-    this.glucoseText = addText(85, 161, 278, 99, 86, WHITE, "--");
-    this.unitsText = addText(120, 240, 226, 26, 23, MUTED, "mg/dL");
-    this.ageText = addText(118, 263, 230, 25, 22, MUTED, "NO CGM DATA");
+    this.glucoseText = addText(111, 204, 235, 75, 72, WHITE, "--");
+    this.unitsText = addText(134, 266, 198, 27, 26, MUTED, "mg/dL");
+    this.ageText = addText(108, 292, 250, 29, 25, MUTED, "NO CGM DATA");
 
-    addText(90, 290, 286, 23, 19, FAINT, "GLUCOSE · 2H");
+    this.chartLabel = addText(102, 318, 262, 25, 23, MUTED, "GLUCOSE · 6H");
     hmUI.createWidget(hmUI.widget.FILL_RECT, {
       x: GRAPH_X, y: GRAPH_Y + GRAPH_H - 1, w: GRAPH_W, h: 1, color: FAINT,
     });
 
-    this.heartText = addText(72, 387, 155, 39, 28, WHITE, "-- BPM");
-    this.batteryText = addText(235, 387, 158, 39, 28, WHITE, "--%");
-    addText(87, 423, 295, 25, 19, FAINT, "LIBRE MONITOR");
+    this.heartText = addText(84, 400, 148, 37, 30, WHITE, "-- BPM");
+    this.batteryText = addText(235, 400, 147, 37, 30, WHITE, "--%");
 
     this.refresh();
+    // getLast() can be an old value, so only report a fresh sensor callback.
+    if (this.heart) {
+      try {
+        this.heartCallback = () => {
+          if (this.destroyed || this.aodOnly) return;
+          const bpm = Number(this.heart.getCurrent());
+          if (Number.isFinite(bpm) && bpm >= 35 && bpm <= 230) {
+            this.currentBpm = Math.round(bpm);
+            this.bpmMeasuredAt = this.clock.getTime();
+            this.updateHeartText();
+          }
+        };
+        this.heart.onCurrentChange(this.heartCallback);
+      } catch (_) {
+        this.heartCallback = null;
+      }
+    }
     this.clock.onPerMinute(() => {
       if (!this.destroyed) this.refresh();
     });
@@ -119,8 +144,8 @@ WatchFace({
     const [dx, dy] = direction;
     const length = Math.sqrt(dx * dx + dy * dy);
     const ux = dx / length, uy = dy / length;
-    const tipX = 369 + ux * 18, tipY = 205 + uy * 18;
-    const tailX = 369 - ux * 18, tailY = 205 - uy * 18;
+    const tipX = 355 + ux * 17, tipY = 236 + uy * 17;
+    const tailX = 355 - ux * 17, tailY = 236 - uy * 17;
     const add = (widget, opts) => this.trendWidgets.push(hmUI.createWidget(widget, opts));
     drawLinePixels(add, tailX, tailY, tipX, tipY, color);
     const px = -uy, py = ux;
@@ -132,9 +157,9 @@ WatchFace({
 
   drawChart(reading, now) {
     this.clearWidgets("chartWidgets");
-    const points = chartCoordinates(reading, now, GRAPH_W, GRAPH_H);
+    const points = chartCoordinates(reading, now, GRAPH_W, GRAPH_H, this.chartMinutes);
     if (points.length === 0) {
-      this.chartWidgets.push(addText(125, 325, 216, 34, 20, FAINT, "NO HISTORY"));
+      this.chartWidgets.push(addText(125, 346, 216, 34, 23, MUTED, "NO HISTORY"));
       return;
     }
     const color = readingColor(reading);
@@ -156,6 +181,8 @@ WatchFace({
     try {
       // Re-create the reader so watchface sees AppService writes made later.
       const storage = new TypedStorage(APP_ID, SHARED_SCOPE);
+      const range = storage.getInt(CHART_RANGE_KEY, 360);
+      this.chartMinutes = range === 120 ? 120 : 360;
       const raw = storage.getString(SHARED_KEY, "");
       if (raw) this.lastRaw = raw;
     } catch (_) {
@@ -163,6 +190,27 @@ WatchFace({
       // but continue updating its age. Never fabricate an up-to-date value.
     }
     return parseGlucoseSnapshot(this.lastRaw, this.clock.getTime());
+  },
+
+  updateHeartText() {
+    if (!this.heartText) return;
+    const age = this.clock.getTime() - this.bpmMeasuredAt;
+    const fresh = this.currentBpm !== null && age >= 0 && age <= HR_MAX_AGE_MS;
+    this.heartText.setProperty(hmUI.prop.TEXT,
+      fresh ? String(this.currentBpm) + " BPM" : "-- BPM");
+  },
+
+  refreshAod() {
+    this.timeText.setProperty(hmUI.prop.TEXT, formatTime(this.clock));
+    this.dateText.setProperty(hmUI.prop.TEXT, formatDate(this.clock));
+    const reading = this.getGlucose();
+    this.glucoseText.setProperty(hmUI.prop.TEXT, reading ? String(reading.value) : "--");
+    this.glucoseText.setProperty(hmUI.prop.COLOR, readingColor(reading));
+    this.ageText.setProperty(hmUI.prop.TEXT, !reading ? "NO CGM DATA" :
+      (reading.ageMinutes > STALE_AFTER_MINUTES ?
+        "STALE " + reading.ageMinutes + "m · mg/dL" :
+        reading.ageMinutes + "m · mg/dL"));
+    hmUI.redraw();
   },
 
   refresh() {
@@ -179,12 +227,13 @@ WatchFace({
       reading.ageMinutes > STALE_AFTER_MINUTES ?
         "STALE " + reading.ageMinutes + "m" : reading.ageMinutes + "m ago");
     this.drawTrend(reading?.trend || 0, color);
+    this.chartLabel.setProperty(hmUI.prop.TEXT,
+      "GLUCOSE · " + (this.chartMinutes === 120 ? "2H" : "6H"));
     this.drawChart(reading, now);
 
-    let bpm = 0, batteryLevel = -1;
-    try { bpm = this.heart?.getLast() || 0; } catch (_) { /* No reading */ }
+    this.updateHeartText();
+    let batteryLevel = -1;
     try { batteryLevel = this.battery?.getCurrent() ?? -1; } catch (_) { /* No reading */ }
-    this.heartText.setProperty(hmUI.prop.TEXT, bpm > 0 ? String(bpm) + " BPM" : "-- BPM");
     this.batteryText.setProperty(hmUI.prop.TEXT,
       batteryLevel >= 0 ? String(Math.round(batteryLevel)) + "%" : "--%");
     hmUI.redraw();
@@ -192,6 +241,10 @@ WatchFace({
 
   onDestroy() {
     this.destroyed = true;
+    if (this.heart && this.heartCallback) {
+      try { this.heart.offCurrentChange(this.heartCallback); } catch (_) { /* No listener */ }
+      this.heartCallback = null;
+    }
     this.clearWidgets("chartWidgets");
     this.clearWidgets("trendWidgets");
   },
