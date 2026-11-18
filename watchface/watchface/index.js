@@ -1,6 +1,7 @@
 import * as hmUI from "@zos/ui";
 import { Time, Battery, HeartRate } from "@zos/sensor";
 import { TypedStorage } from "@zos/share-storage";
+import { getScene, SCENE_AOD } from "@zos/app";
 import {
   CHART_MINUTES, STALE_AFTER_MINUTES, parseGlucoseSnapshot,
   readingColor, chartCoordinates, linePixels,
@@ -13,9 +14,9 @@ const WHITE = 0xffffff;
 const MUTED = 0xa7b3be;
 const FAINT = 0x536574;
 const GRAPH_X = 82;
-const GRAPH_Y = 301;
+const GRAPH_Y = 315;
 const GRAPH_W = 302;
-const GRAPH_H = 70;
+const GRAPH_H = 60;
 const TREND_DIRECTIONS = {
   1: [0, 1], 2: [1, 1], 3: [1, 0], 4: [1, -1], 5: [0, -1],
 };
@@ -70,15 +71,27 @@ WatchFace({
     hmUI.createWidget(hmUI.widget.FILL_RECT, {
       x: 0, y: 0, w: 466, h: 466, color: 0x050b12,
     });
+    if (getScene() === SCENE_AOD) {
+      // Minimal low-power scene. Glucose is not used as an AOD alarm.
+      this.aodOnly = true;
+      this.timeText = addText(65, 165, 336, 93, 83, WHITE, formatTime(this.clock));
+      this.dateText = addText(100, 261, 266, 36, 25, MUTED, formatDate(this.clock));
+      this.clock.onPerMinute(() => {
+        if (this.destroyed) return;
+        this.timeText.setProperty(hmUI.prop.TEXT, formatTime(this.clock));
+        this.dateText.setProperty(hmUI.prop.TEXT, formatDate(this.clock));
+      });
+      return;
+    }
 
     this.timeText = addText(55, 28, 356, 97, 88, WHITE, "--:--");
     this.dateText = addText(90, 119, 286, 33, 25, MUTED, "--.--.----");
 
     this.glucoseText = addText(85, 161, 278, 99, 86, WHITE, "--");
-    this.unitsText = addText(120, 242, 226, 30, 23, MUTED, "mg/dL");
-    this.ageText = addText(118, 265, 230, 28, 22, MUTED, "NO CGM DATA");
+    this.unitsText = addText(120, 240, 226, 26, 23, MUTED, "mg/dL");
+    this.ageText = addText(118, 263, 230, 25, 22, MUTED, "NO CGM DATA");
 
-    addText(90, 288, 286, 25, 19, FAINT, "GLUCOSE · 2H");
+    addText(90, 290, 286, 23, 19, FAINT, "GLUCOSE · 2H");
     hmUI.createWidget(hmUI.widget.FILL_RECT, {
       x: GRAPH_X, y: GRAPH_Y + GRAPH_H - 1, w: GRAPH_W, h: 1, color: FAINT,
     });
@@ -121,7 +134,7 @@ WatchFace({
     this.clearWidgets("chartWidgets");
     const points = chartCoordinates(reading, now, GRAPH_W, GRAPH_H);
     if (points.length === 0) {
-      this.chartWidgets.push(addText(125, 315, 216, 34, 20, FAINT, "NO HISTORY"));
+      this.chartWidgets.push(addText(125, 325, 216, 34, 20, FAINT, "NO HISTORY"));
       return;
     }
     const color = readingColor(reading);
