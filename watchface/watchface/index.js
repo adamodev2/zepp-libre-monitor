@@ -1,5 +1,6 @@
 import * as hmUI from "@zos/ui";
-import { Time, Battery, HeartRate } from "@zos/sensor";
+import { Time, Battery, HeartRate, Wear } from "@zos/sensor";
+import * as timer from "@zos/timer";
 import { TypedStorage } from "@zos/share-storage";
 import { getScene, SCENE_AOD } from "@zos/app";
 import {
@@ -12,6 +13,7 @@ const SHARED_SCOPE = "libre-glucose-face-v1";
 const SHARED_KEY = "snapshot";
 const CHART_RANGE_KEY = "chart_range_minutes";
 const HR_MAX_AGE_MS = 2 * 60_000;
+const FOREGROUND_REFRESH_MS = 30_000;
 const WHITE = 0xffffff;
 const MUTED = 0xa7b3be;
 const FAINT = 0x536574;
@@ -63,6 +65,8 @@ WatchFace({
     this.clock = new Time();
     this.battery = null;
     this.heart = null;
+    this.wear = null;
+    try { this.wear = new Wear(); } catch (_) { /* Wear detection unavailable */ }
     try { this.battery = new Battery(); } catch (_) { /* Not available */ }
     try { this.heart = new HeartRate(); } catch (_) { /* Permission needed */ }
     this.chartWidgets = [];
@@ -70,6 +74,9 @@ WatchFace({
     this.lastRaw = "";
     this.destroyed = false;
     this.heartCallback = null;
+    this.heartListening = false;
+    this.wearCallback = null;
+    this.pollTimer = null;
     this.currentBpm = null;
     this.bpmMeasuredAt = 0;
     this.chartMinutes = 360;
@@ -114,28 +121,28 @@ WatchFace({
     // also refreshes the independent AOD instance where supported.
     hmUI.createWidget(hmUI.widget.WIDGET_DELEGATE, {
       resume_call: () => {
-        if (!this.destroyed) this.refresh();
+        if (this.destroyed) return;
+        this.refresh();
+        this.syncHeartMonitoring();
+        this.startForegroundRefresh();
       },
-      pause_call: () => {},
+      pause_call: () => {
+        this.stopForegroundRefresh();
+        this.stopHeartMonitoring();
+      },
     });
 
     this.refresh();
-    if (this.heart) {
+    if (this.wear) {
       try {
-        this.heartCallback = () => {
-          if (this.destroyed || getScene() === SCENE_AOD) return;
-          const bpm = Number(this.heart.getCurrent());
-          if (Number.isFinite(bpm) && bpm >= 35 && bpm <= 230) {
-            this.currentBpm = Math.round(bpm);
-            this.bpmMeasuredAt = this.clock.getTime();
-            this.updateHeartText();
-          }
-        };
-        this.heart.onCurrentChange(this.heartCallback);
+        this.wearCallback = () => this.syncHeartMonitoring();
+        this.wear.onChange(this.wearCallback);
       } catch (_) {
-        this.heartCallback = null;
+        this.wearCallback = null;
       }
     }
+    this.syncHeartMonitoring();
+    this.startForegroundRefresh();
     this.clock.onPerMinute(() => {
       if (!this.destroyed) this.refresh();
     });
@@ -194,7 +201,15 @@ WatchFace({
       const range = storage.getInt(CHART_RANGE_KEY, 360);
       this.chartMinutes = range === 120 ? 120 : 360;
       const raw = storage.getString(SHARED_KEY, "");
-      if (raw) this.lastRaw = raw;
+      if (raw) {
+        const candidate = parseGlucoseSnapshot(raw, this.clock.getTime());
+        const previous = parseGlucoseSnapshot(this.lastRaw, this.clock.getTime());
+        // A slower background sync must not make an active watchface
+        // jump backward to an older reading.
+        if (candidate && (!previous || candidate.timestamp >= previous.timestamp)) {
+          this.lastRaw = raw;
+        }
+      }
     } catch (_) {
       // If cross-app storage is unavailable keep the last known record,
       // but continue updating its age. Never fabricate an up-to-date value.
@@ -202,10 +217,83 @@ WatchFace({
     return parseGlucoseSnapshot(this.lastRaw, this.clock.getTime());
   },
 
+  isWearing() {
+    if (!this.wear) return false;
+    try {
+      const status = this.wear.getStatus();
+      return status === 1 || status === 2;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  stopHeartMonitoring() {
+    if (!this.heartListening || !this.heart || !this.heartCallback) return;
+    try { this.heart.offCurrentChange(this.heartCallback); } catch (_) {}
+    this.heartListening = false;
+  },
+
+  syncHeartMonitoring() {
+    const worn = this.isWearing();
+    if (!worn || getScene() === SCENE_AOD) {
+      this.currentBpm = null;
+      this.bpmMeasuredAt = 0;
+      this.stopHeartMonitoring();
+      this.updateHeartText();
+      return;
+    }
+    if (!this.heart || this.heartListening) return;
+    if (!this.heartCallback) {
+      this.heartCallback = () => {
+        if (this.destroyed || !this.isWearing() || getScene() === SCENE_AOD) {
+          this.currentBpm = null;
+          this.updateHeartText();
+          return;
+        }
+        try {
+          const bpm = Number(this.heart.getCurrent());
+          if (Number.isFinite(bpm) && bpm >= 35 && bpm <= 230) {
+            this.currentBpm = Math.round(bpm);
+            this.bpmMeasuredAt = this.clock.getTime();
+            this.updateHeartText();
+          }
+        } catch (_) {}
+      };
+    }
+    try {
+      this.heart.onCurrentChange(this.heartCallback);
+      this.heartListening = true;
+    } catch (_) {
+      this.heartListening = false;
+    }
+  },
+
+  startForegroundRefresh() {
+    if (this.pollTimer !== null || getScene() === SCENE_AOD) return;
+    try {
+      this.pollTimer = timer.createTimer(
+        FOREGROUND_REFRESH_MS, FOREGROUND_REFRESH_MS,
+        () => {
+          if (this.destroyed || getScene() === SCENE_AOD) return;
+          this.refresh();
+        }, {}
+      );
+    } catch (_) {
+      this.pollTimer = null;
+    }
+  },
+
+  stopForegroundRefresh() {
+    if (this.pollTimer === null) return;
+    try { timer.stopTimer(this.pollTimer); } catch (_) {}
+    this.pollTimer = null;
+  },
+
   updateHeartText() {
     if (!this.heartText) return;
     const age = this.clock.getTime() - this.bpmMeasuredAt;
-    const fresh = this.currentBpm !== null && age >= 0 && age <= HR_MAX_AGE_MS;
+    const fresh = this.isWearing() && this.currentBpm !== null &&
+      age >= 0 && age <= HR_MAX_AGE_MS;
     this.heartText.setProperty(hmUI.prop.TEXT,
       fresh ? String(this.currentBpm) + " BPM" : "-- BPM");
   },
@@ -240,7 +328,9 @@ WatchFace({
     this.ageText.setProperty(hmUI.prop.TEXT,
       !reading ? "NO CGM DATA" :
       reading.ageMinutes > STALE_AFTER_MINUTES ?
-        "STALE " + reading.ageMinutes + "m" : reading.ageMinutes + "m ago");
+        "STALE " + reading.ageMinutes + "m" :
+        reading.ageMinutes + "m · SHARE " +
+          (reading.publishAgeMinutes === null ? "?" : reading.publishAgeMinutes + "m"));
     this.drawTrend(reading?.trend || 0, color);
     this.chartLabel.setProperty(hmUI.prop.TEXT,
       "GLUCOSE · " + (this.chartMinutes === 120 ? "2H" : "6H"));
@@ -256,10 +346,13 @@ WatchFace({
 
   onDestroy() {
     this.destroyed = true;
-    if (this.heart && this.heartCallback) {
-      try { this.heart.offCurrentChange(this.heartCallback); } catch (_) { /* No listener */ }
-      this.heartCallback = null;
+    this.stopForegroundRefresh();
+    this.stopHeartMonitoring();
+    if (this.wear && this.wearCallback) {
+      try { this.wear.offChange(this.wearCallback); } catch (_) {}
+      this.wearCallback = null;
     }
+    this.heartCallback = null;
     this.clearWidgets("chartWidgets");
     this.clearWidgets("trendWidgets");
   },
