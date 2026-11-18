@@ -48,3 +48,13 @@ test("chart supports 2h and 6h using the same real points", () => {
   assert.equal(chartCoordinates(reading, NOW, 300, 80, 120).length, 2);
   assert.equal(chartCoordinates(reading, NOW, 300, 80, 360).length, 3);
 });
+
+test("watchface declares separate normal and AOD display levels", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(new URL("../watchface/index.js", import.meta.url), "utf8");
+  assert.match(source, /show_level:\s*hmUI\.show_level\.ONLY_NORMAL/);
+  assert.match(source, /hmUI\.show_level\.ONAL_AOD/);
+  assert.match(source, /WIDGET_DELEGATE/);
+  assert.match(source, /this\.clock\.onPerMinute/);
+  assert.match(source, /this\.refreshAod\(reading\)/);
+});
