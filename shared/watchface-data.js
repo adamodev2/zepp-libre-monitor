@@ -36,6 +36,7 @@ export function createWatchfacePayload(snapshot, now = Date.now()) {
     version: 1,
     timestamp: Math.round(snapshot.timestamp),
     savedAt: Math.round(snapshot.savedAt),
+    publishedAt: Math.round(now),
     value: Math.round(snapshot.value),
     trend: Number.isInteger(snapshot.trend) ? snapshot.trend : 0,
     low: Number.isFinite(t.low) ? t.low : 80,
