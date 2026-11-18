@@ -7,9 +7,10 @@ and glucose caching. The watch face only displays measurements.
 ## Display
 
 - Watch time and date
-- Glucose, trend arrow, measurement age and a real 2-hour glucose chart
-- Most recent measured heart rate (BPM)
+- Glucose, trend arrow and measurement age with a real 2h or 6h history chart
+- Current heart rate (BPM) only when a fresh onCurrentChange measurement is available
 - Watch battery percentage
+- Large watch time, bigger captions, and glucose on the low-power AOD view
 
 ## Data sharing
 
@@ -30,16 +31,17 @@ and explicitly labelled STALE. Chart gaps are never fabricated.
 1. Install the updated Mini App from the repository root using:
    npm install && npm run preview
 2. Open the Mini App, enable BG ON and confirm current glucose and history.
-3. From the repository root, run:
+3. Set the preferred 2h/6h chart range in the Mini App; it will be shared.
+4. From the repository root, run:
    cd watchface
    npm install
    npm run check
    npm test
    npm run preview
-4. Scan the Zepp developer preview QR code to install the **separate face**.
-5. Activate the face in watch-face settings and compare the glucose age and
+5. Scan the Zepp developer preview QR code to install the **separate face**.
+6. Activate the face in watch-face settings and compare the glucose age and
    value to the original Mini App.
-6. Close the Mini App for 15–20 minutes and verify that the face still gets
+7. Close the Mini App for 15–20 minutes and verify that the face still gets
    recent readings as AppService updates shared storage.
 
 The face appId is provisionally set to 1092842. If Zepp requires an appId
@@ -49,9 +51,20 @@ Keep the Mini App's appId (1092841) unchanged.
 ## Current limits
 
 - Fixed 466×466 Active 2 Round layout; physical watch verification pending.
-- Fixed 2-hour chart; no touch navigation or AOD-specific UI yet.
-- BPM uses the last recorded watch measurement, not a continuous reading.
+- Chart range follows the Mini App's saved 2h/6h selection. Set it in the Mini App.
+- AOD displays time, date, glucose, and age but not the full chart to limit power usage.
+  Select the AOD style that follows the active watch face in Zepp settings.
+- BPM uses onCurrentChange, not getLast. If no measurement arrives, it displays
+  -- BPM instead of a potentially stale number. Continuous measurement may
+  increase battery usage; it is disabled in the separate AOD scene and on destroy.
 - Refresh is requested on the watch runtime's minute event; scheduling may
   vary with power mode and Zepp OS.
 - Experimental, unofficial glucose display. Do not use for alarms or insulin
   dosing. Keep official Libre notifications and CGM alarms enabled.
+
+## AOD test
+
+After the watch dims, make sure the system AOD setting is set to follow the
+current watch face. Glucose should remain visible with its measurement age.
+AOD refresh frequency and visibility are subject to device power settings.
+The CGM values on AOD are informational only, not alarm data.
