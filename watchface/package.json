@@ -1,0 +1,16 @@
+{
+  "name": "zepp-libre-watchface",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check watchface/index.js && node --check lib/model.js",
+    "test": "node --test tests/*.test.js",
+    "preview": "zeus preview",
+    "build": "zeus build"
+  },
+  "devDependencies": {
+    "@zeppos/device-types": "^3.0.0",
+    "@zeppos/zeus-cli": "latest"
+  }
+}
