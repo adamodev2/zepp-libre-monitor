@@ -70,3 +70,16 @@ test("publication age is separate from glucose measurement age", () => {
   assert.equal(reading.ageMinutes, 12);
   assert.equal(reading.publishAgeMinutes, 3);
 });
+
+test("watchface requires confirmed wear and reacts to screen changes", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(new URL("../watchface/index.js", import.meta.url), "utf8");
+  assert.match(source, /new Wear\(\)/);
+  assert.match(source, /return status === 1;/);
+  assert.doesNotMatch(source, /\.getLast\(\)/);
+  assert.match(source, /new Screen\(\)/);
+  assert.match(source, /this\.screen\.onChange/);
+  assert.match(source, /FOREGROUND_REFRESH_MS = 30_000/);
+  assert.match(source, /LIBRE AOD/);
+  assert.match(source, /SHARE /);
+});
