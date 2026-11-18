@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseGlucoseSnapshot, readingColor, chartCoordinates, linePixels,
 } from "../lib/model.js";
+import { isHeartRateDisplayable, MIN_WEAR_DURATION_MS } from "../lib/heart-confidence.js";
 
 const NOW = Date.parse("2026-11-18T12:00:00Z");
 
@@ -82,4 +83,23 @@ test("watchface requires confirmed wear and reacts to screen changes", async () 
   assert.match(source, /FOREGROUND_REFRESH_MS = 30_000/);
   assert.match(source, /LIBRE AOD/);
   assert.match(source, /SHARE /);
+});
+
+test("BPM stays hidden until wrist is confirmed and repeated heart events are fresh", () => {
+  const sample = { wearStatus: 1, wearingSince: NOW - MIN_WEAR_DURATION_MS - 1,
+    bpm: 101, measuredAt: NOW - 5000, eventCount: 2, now: NOW };
+  assert.equal(isHeartRateDisplayable(sample), true);
+  assert.equal(isHeartRateDisplayable({ ...sample, wearStatus: 0 }), false);
+  assert.equal(isHeartRateDisplayable({ ...sample, wearStatus: 2 }), false);
+  assert.equal(isHeartRateDisplayable({ ...sample, wearStatus: 3 }), false);
+  assert.equal(isHeartRateDisplayable({ ...sample, wearingSince: NOW - 5000 }), false);
+  assert.equal(isHeartRateDisplayable({ ...sample, eventCount: 1 }), false);
+  assert.equal(isHeartRateDisplayable({ ...sample, measuredAt: NOW - 90_000 }), false);
+});
+test("watchface exposes raw wear and system AOD state for diagnosis", async () => {
+  const { readFileSync } = await import("node:fs");
+  const source = readFileSync(new URL("../watchface/index.js", import.meta.url), "utf8");
+  assert.match(source, /getSettings\(\)\?\.standby\?\.style/);
+  assert.match(source, /AOD " \+ aodMode/);
+  assert.match(source, /"WRIST " \+/);
 });
