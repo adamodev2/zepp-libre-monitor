@@ -2,6 +2,8 @@ export const WATCH_CACHE_KEY = "libre_watch_snapshot_v1";
 export const WATCH_READING_KEY = "libre_watch_reading_v1";
 export const BG_DIAGNOSTIC_STORAGE_PATH = "libre-bg-diagnostics";
 export const BG_SERVICE_DEBUG_KEY = "libre_bg_service_debug_v1";
+export const BG_SNAPSHOT_STORAGE_PATH = "libre-background-reading";
+export const BG_SNAPSHOT_KEY = "libre_bg_snapshot_v1";
 const MAX_HISTORY_MS = 6 * 60 * 60_000;
 const MAX_POINTS = 361;
 
@@ -92,4 +94,10 @@ export function readWatchSnapshot(storage, now = Date.now()) {
   if (full.savedAt > small.savedAt) return full;
   // Use the newest reading and the real, timestamped history saved so far.
   return { ...small, history: full.history };
+}
+
+// Background data uses an isolated storage file to avoid overwriting foreground
+// snapshots. Only valid Libre measurements may be restored.
+export function readBackgroundSnapshot(storage, now = Date.now()) {
+  return readStoredKey(storage, BG_SNAPSHOT_KEY, now);
 }
