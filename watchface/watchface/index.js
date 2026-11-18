@@ -1,6 +1,8 @@
 import * as hmUI from "@zos/ui";
 import { Time, Battery, HeartRate, Wear, Screen } from "@zos/sensor";
 import * as timer from "@zos/timer";
+import { getSettings } from "@zos/display";
+import { isHeartRateDisplayable } from "../lib/heart-confidence";
 import { TypedStorage } from "@zos/share-storage";
 import { getScene, SCENE_AOD } from "@zos/app";
 import {
@@ -12,7 +14,6 @@ const APP_ID = 1092841;
 const SHARED_SCOPE = "libre-glucose-face-v1";
 const SHARED_KEY = "snapshot";
 const CHART_RANGE_KEY = "chart_range_minutes";
-const HR_MAX_AGE_MS = 2 * 60_000;
 const FOREGROUND_REFRESH_MS = 30_000;
 const WHITE = 0xffffff;
 const MUTED = 0xa7b3be;
@@ -82,6 +83,9 @@ WatchFace({
     this.pollTimer = null;
     this.currentBpm = null;
     this.bpmMeasuredAt = 0;
+    this.wearingSince = 0;
+    this.heartEventCount = 0;
+    this.lastWearStatus = null;
     this.chartMinutes = 360;
   },
 
@@ -109,7 +113,8 @@ WatchFace({
       w: GRAPH_W, h: 1, color: FAINT,
       show_level: hmUI.show_level.ONLY_NORMAL,
     });
-    this.heartText = addText(84, 400, 148, 37, 30, WHITE, "-- BPM");
+    this.heartText = addText(84, 399, 148, 37, 30, WHITE, "-- BPM");
+    this.wearDebugText = addText(109, 427, 98, 25, 20, MUTED, "WRIST ?");
     this.batteryText = addText(235, 400, 147, 37, 30, WHITE, "--%");
 
     // Lightweight AOD view; Zepp displays these widgets only when resting.
@@ -140,7 +145,10 @@ WatchFace({
     this.refresh();
     if (this.wear) {
       try {
-        this.wearCallback = () => this.syncHeartMonitoring();
+        this.wearCallback = () => {
+          this.syncHeartMonitoring();
+          this.updateHeartText();
+        };
         this.wear.onChange(this.wearCallback);
       } catch (_) {
         this.wearCallback = null;
@@ -246,15 +254,39 @@ WatchFace({
     catch (_) { return getScene() !== SCENE_AOD; }
   },
 
+  readWearStatus() {
+    try { return this.wear ? this.wear.getStatus() : null; }
+    catch (_) { return null; }
+  },
+
+  sampleWearStatus() {
+    const status = this.readWearStatus();
+    const now = this.clock.getTime();
+    if (status !== 1) {
+      this.wearingSince = 0;
+      this.currentBpm = null;
+      this.bpmMeasuredAt = 0;
+      this.heartEventCount = 0;
+    } else if (this.lastWearStatus !== 1 || this.wearingSince === 0) {
+      this.wearingSince = now;
+      this.currentBpm = null;
+      this.bpmMeasuredAt = 0;
+      this.heartEventCount = 0;
+    }
+    this.lastWearStatus = status;
+    return status;
+  },
+
   isWearing() {
-    if (!this.wear) return false;
+    return this.readWearStatus() === 1;
+  },
+
+  readAodMode() {
     try {
-      const status = this.wear.getStatus();
-      // Only a confirmed wearing state is sufficient for displaying BPM.
-      // Motion alone must never be presented as confirmed wrist contact.
-      return status === 1;
+      const mode = getSettings()?.standby?.style;
+      return mode === 0 ? "SYSTEM" : mode === 1 ? "FACE" : "UNKNOWN";
     } catch (_) {
-      return false;
+      return "UNKNOWN";
     }
   },
 
@@ -265,10 +297,11 @@ WatchFace({
   },
 
   syncHeartMonitoring() {
-    const worn = this.isWearing();
-    if (!worn || !this.isScreenAwake()) {
+    const status = this.sampleWearStatus();
+    if (status !== 1 || !this.isScreenAwake()) {
       this.currentBpm = null;
       this.bpmMeasuredAt = 0;
+      this.heartEventCount = 0;
       this.stopHeartMonitoring();
       this.updateHeartText();
       return;
@@ -276,7 +309,7 @@ WatchFace({
     if (!this.heart || this.heartListening) return;
     if (!this.heartCallback) {
       this.heartCallback = () => {
-        if (this.destroyed || !this.isWearing() || !this.isScreenAwake()) {
+        if (this.destroyed || this.sampleWearStatus() !== 1 || !this.isScreenAwake()) {
           this.currentBpm = null;
           this.updateHeartText();
           return;
@@ -286,6 +319,7 @@ WatchFace({
           if (Number.isFinite(bpm) && bpm >= 35 && bpm <= 230) {
             this.currentBpm = Math.round(bpm);
             this.bpmMeasuredAt = this.clock.getTime();
+            this.heartEventCount += 1;
             this.updateHeartText();
           }
         } catch (_) {}
@@ -322,11 +356,22 @@ WatchFace({
 
   updateHeartText() {
     if (!this.heartText) return;
-    const age = this.clock.getTime() - this.bpmMeasuredAt;
-    const fresh = this.isWearing() && this.currentBpm !== null &&
-      age >= 0 && age <= HR_MAX_AGE_MS;
+    const now = this.clock.getTime();
+    const status = this.sampleWearStatus();
+    const fresh = isHeartRateDisplayable({
+      wearStatus: status,
+      wearingSince: this.wearingSince,
+      bpm: this.currentBpm,
+      measuredAt: this.bpmMeasuredAt,
+      eventCount: this.heartEventCount,
+      now,
+    });
     this.heartText.setProperty(hmUI.prop.TEXT,
       fresh ? String(this.currentBpm) + " BPM" : "-- BPM");
+    if (this.wearDebugText) {
+      this.wearDebugText.setProperty(hmUI.prop.TEXT,
+        "WRIST " + (status === null ? "?" : status));
+    }
   },
 
   refreshAod(reading) {
@@ -363,8 +408,10 @@ WatchFace({
         reading.ageMinutes + "m · SHARE " +
           (reading.publishAgeMinutes === null ? "?" : reading.publishAgeMinutes + "m"));
     this.drawTrend(reading?.trend || 0, color);
+    const aodMode = this.readAodMode();
     this.chartLabel.setProperty(hmUI.prop.TEXT,
-      "GLUCOSE · " + (this.chartMinutes === 120 ? "2H" : "6H"));
+      (this.chartMinutes === 120 ? "2H" : "6H") +
+      " · AOD " + aodMode);
     this.drawChart(reading, now);
 
     this.updateHeartText();
