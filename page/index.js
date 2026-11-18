@@ -9,7 +9,7 @@ import { normalizeReading, glucoseBand, parseGlucoseThresholds } from "../shared
 import { chartSegments, chartStrokePixels } from "../shared/chart";
 import { createWatchLayout } from "../shared/watch-layout";
 import { trendArrowPixels } from "../shared/trend-icon";
-import { BG_DIAGNOSTIC_STORAGE_PATH, BG_SERVICE_DEBUG_KEY, BG_SNAPSHOT_STORAGE_PATH, createWatchSnapshot, readWatchSnapshot, readBackgroundSnapshot, saveWatchSnapshot } from "../shared/watch-cache";
+import { BG_DIAGNOSTIC_STORAGE_PATH, BG_SERVICE_DEBUG_KEY, BG_SNAPSHOT_STORAGE_PATH, createWatchSnapshot, readWatchSnapshot, readBackgroundSnapshot, saveWatchSnapshot, readChartRange, saveChartRange } from "../shared/watch-cache";
 
 const device = getDeviceInfo();
 const WIDTH = device.width || 466;
@@ -49,7 +49,7 @@ Page(BasePage({
     this.requestSequence = 0;
     this.requestInFlight = false;
     this.destroyed = false;
-    this.chartMinutes = 120;
+    this.chartMinutes = readChartRange(watchStorage);
     this.history = [];
     this.chartWidgets = [];
     this.thresholds = parseGlucoseThresholds();
@@ -88,6 +88,7 @@ Page(BasePage({
       press_color: 0x405163, radius: 20,
       click_func: () => {
         this.chartMinutes = this.chartMinutes === 120 ? 360 : 120;
+        saveChartRange(watchStorage, this.chartMinutes);
         this.drawChart();
       },
     });
