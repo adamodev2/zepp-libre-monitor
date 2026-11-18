@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check watchface/index.js && node --check lib/model.js",
+    "check": "node --check watchface/index.js && node --check lib/model.js && node --check scripts/prepare-zepp.cjs",
     "test": "node --test tests/*.test.js",
-    "preview": "zeus preview",
-    "build": "zeus build"
+    "preview": "node scripts/prepare-zepp.cjs && zeus preview",
+    "build": "node scripts/prepare-zepp.cjs && zeus build"
   },
   "devDependencies": {
     "@zeppos/device-types": "^3.0.0",
