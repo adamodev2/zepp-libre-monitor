@@ -76,3 +76,44 @@ still defer JavaScript updates during screen-off or low-power modes; test
 the age before and after wake, and do not interpret AOD values as continuous
 or alarm-grade glucose monitoring.
 The CGM values on AOD are informational only, not alarm data.
+
+## Diagnosing different values on the face and in the Mini App
+
+The Mini App fetches LibreLinkUp data when opened; the face only sees the last
+successful cross-app publication. The face now displays:
+- `3m`: glucose measurement age (not face startup age).
+- `SHARE 4m`: age of the last successfully published face snapshot.
+
+The producer verifies that the shared store contains the written payload and
+rejects older sensor measurements. The face also refuses to roll back to an
+older value during an active session. This reduces stale-data regressions but
+cannot force background scheduling when Zepp suspends it.
+
+If the face shows `SHARE 20m` but the Mini App immediately shows live data,
+the shared snapshot was not updated by the background service during those
+20 minutes. To isolate the failure, open the Mini App once and return to the
+face: `SHARE` should then become `0m`. If not, check Zepp device logs for
+`WATCHFACE_SHARE_VERIFY_FAILED` or `WATCHFACE_SHARE_UNAVAILABLE`.
+
+## Heart rate and screen wake
+
+The face only displays BPM from `HeartRate.onCurrentChange` while
+`Wear.getStatus() === 1` (confirmed wearing) and the screen is awake.
+It shows `-- BPM` when not worn, the wearer is unknown, or no fresh
+measurement arrived within two minutes. Motion alone is not proof of
+wearing. Continuous measurement pauses when the face is inactive.
+
+While the normal face is active, its shared-data view is polled every 30
+seconds. Screen-on events trigger an immediate refresh. The watch firmware
+may suspend JavaScript while the screen is off, so do not expect a live face
+to update in darkness solely because background sync is working.
+
+## Identifying AOD mode
+
+The custom AOD screen now includes a small static `LIBRE AOD` label.
+If an Always-On screen displays only a generic system clock and *not*
+`LIBRE AOD`, Zepp is using its system style or did not load this face's
+custom AOD. On Active 2 Round, open the device's Always-On Display settings,
+enable AOD, and choose the style that **follows the current watch face**.
+Custom AOD is dependent on device firmware and watchface installation.
+Do not rely on AOD as a glucose alarm.
