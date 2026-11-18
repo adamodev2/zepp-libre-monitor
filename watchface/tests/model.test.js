@@ -36,3 +36,15 @@ test("does not fabricate missing history or stale measurements", () => {
   assert.ok(pixels.every((p) => p.x >= 0 && p.x < 300));
   assert.ok(!pixels.some((p) => p.x > coords[1].x + 12 && p.x < coords[2].x - 12));
 });
+
+test("chart supports 2h and 6h using the same real points", () => {
+  const reading = parseGlucoseSnapshot({
+    version: 1, timestamp: NOW, value: 120, points: [
+      [NOW - 300 * 60_000, 110],
+      [NOW - 30 * 60_000, 120],
+      [NOW - 5 * 60_000, 125],
+    ],
+  }, NOW);
+  assert.equal(chartCoordinates(reading, NOW, 300, 80, 120).length, 2);
+  assert.equal(chartCoordinates(reading, NOW, 300, 80, 360).length, 3);
+});
