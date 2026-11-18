@@ -5,8 +5,8 @@
     "appName": "Libre Glucose Face",
     "appType": "watchface",
     "version": {
-      "code": 2,
-      "name": "0.1.1"
+      "code": 3,
+      "name": "0.1.2"
     },
     "vender": "community",
     "description": "Read-only Libre glucose watch face for Amazfit Active 2 Round",
