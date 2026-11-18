@@ -163,7 +163,13 @@ Page(BasePage({
     this.value.setProperty(hmUI.prop.TEXT, String(cached.value));
     this.value.setProperty(hmUI.prop.COLOR, this.glucoseColor(cached.value));
     this.renderTrend(cached.trend, this.glucoseColor(cached.value));
-    this.status.setProperty(hmUI.prop.TEXT, "CACHED " + cached.ageMinutes + "m · Connecting");
+    const bgAge = background
+      ? Math.max(0, Math.floor((Date.now() - background.savedAt) / 60_000))
+      : null;
+    const bgLabel = this.backgroundEnabled
+      ? " · BG " + (bgAge === null ? "WAIT" : bgAge + "m")
+      : "";
+    this.status.setProperty(hmUI.prop.TEXT, "CACHED " + cached.ageMinutes + "m" + bgLabel);
   },
   saveWatchSnapshot(reading) {
     const snapshot = createWatchSnapshot(reading, this.thresholds);
