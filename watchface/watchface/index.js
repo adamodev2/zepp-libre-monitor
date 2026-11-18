@@ -250,7 +250,9 @@ WatchFace({
     if (!this.wear) return false;
     try {
       const status = this.wear.getStatus();
-      return status === 1 || status === 2;
+      // Only a confirmed wearing state is sufficient for displaying BPM.
+      // Motion alone must never be presented as confirmed wrist contact.
+      return status === 1;
     } catch (_) {
       return false;
     }
