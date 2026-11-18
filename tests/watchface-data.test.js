@@ -21,6 +21,7 @@ test("shared payload includes real glucose and recent history only", () => {
   assert.equal(result.trend, 4);
   assert.equal(result.low, 80);
   assert.deepEqual(result.points, [
+    [NOW - 180 * 60_000, 110],
     [NOW - 10 * 60_000, 119],
     [NOW - 5 * 60_000, 122],
   ]);
@@ -29,4 +30,17 @@ test("shared payload includes real glucose and recent history only", () => {
 test("shared payload rejects invalid glucose", () => {
   assert.equal(createWatchfacePayload({ value: 999, timestamp: NOW, savedAt: NOW }, NOW), null);
   assert.equal(createWatchfacePayload({ value: 100, timestamp: NOW + 120_000, savedAt: NOW }, NOW), null);
+});
+
+test("shares at most one actual point per five-minute interval over six hours", () => {
+  const history = [];
+  for (let minute = 359; minute >= 0; minute--) {
+    history.push({ timestamp: NOW - minute * 60_000, value: 100 + minute % 20 });
+  }
+  const data = createWatchfacePayload({
+    timestamp: NOW, savedAt: NOW, value: 100, history,
+  }, NOW);
+  assert.ok(data.points.length <= 76);
+  assert.ok(data.points.some(([time]) => time < NOW - 300 * 60_000));
+  assert.ok(data.points.some(([time]) => time > NOW - 5 * 60_000));
 });
