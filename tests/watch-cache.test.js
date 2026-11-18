@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { WATCH_CACHE_KEY, WATCH_READING_KEY, BG_SNAPSHOT_KEY, createWatchSnapshot, readWatchSnapshot, readBackgroundSnapshot, saveWatchSnapshot } from "../shared/watch-cache.js";
+import { WATCH_CACHE_KEY, WATCH_READING_KEY, BG_SNAPSHOT_KEY, CHART_RANGE_KEY, createWatchSnapshot, readWatchSnapshot, readBackgroundSnapshot, saveWatchSnapshot, readChartRange, saveChartRange } from "../shared/watch-cache.js";
 
 function storage() {
   const memory = new Map();
@@ -148,4 +148,26 @@ test("background cache rejects malformed and expired readings", () => {
   const old = createWatchSnapshot({ value: 120, ageMs: 0 }, null, now - 7 * 60 * 60_000);
   store.setItem(BG_SNAPSHOT_KEY, JSON.stringify(old));
   assert.equal(readBackgroundSnapshot(store, now), null);
+});
+
+test("chart range persists across app launches", () => {
+  const store = storage();
+  assert.equal(readChartRange(store), 120);
+  assert.equal(saveChartRange(store, 360), true);
+  assert.equal(readChartRange(store), 360);
+  assert.equal(saveChartRange(store, 120), true);
+  assert.equal(readChartRange(store), 120);
+});
+
+test("invalid or unreadable chart preference defaults to two hours", () => {
+  const store = storage();
+  store.setItem(CHART_RANGE_KEY, "invalid");
+  assert.equal(readChartRange(store), 120);
+  assert.equal(saveChartRange(store, 999), false);
+  const broken = {
+    getItem() { throw new Error("Read failed"); },
+    setItem() { throw new Error("Write failed"); },
+  };
+  assert.equal(readChartRange(broken), 120);
+  assert.equal(saveChartRange(broken, 360), false);
 });
