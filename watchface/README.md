@@ -117,3 +117,29 @@ custom AOD. On Active 2 Round, open the device's Always-On Display settings,
 enable AOD, and choose the style that **follows the current watch face**.
 Custom AOD is dependent on device firmware and watchface installation.
 Do not rely on AOD as a glucose alarm.
+
+## AOD selection and wear-sensor troubleshooting (v0.1.2)
+
+**Style Selection** is Zepp's catalog of built-in/system standby styles.
+Custom third-party watch faces do not normally appear as selectable entries in
+this catalog. The relevant AOD operating mode is **Follow Current Watch Face**,
+not a selection of our face from that catalog. Whether that mode is exposed
+by your Active 2 firmware is device-dependent.
+
+The face now reads the **actual system standby mode** using
+`getSettings().standby.style` and prints `AOD SYSTEM` (OS default),
+`AOD FACE` (follows current face), or `AOD UNKNOWN` next to the chart range.
+If it says `AOD SYSTEM`, our screen-off widgets cannot override the chosen
+system standby style. Changing watchface code cannot change the system AOD
+preference. If the firmware never presents a Follow option, treat custom AOD
+as unsupported until a device-specific workaround is confirmed.
+
+Heart rate is now gated more conservatively: a confirmed worn state must
+persist for at least 60 seconds, and two fresh live heart-rate callbacks must
+occur before a number is displayed. It becomes stale after 45 seconds.
+The small `WRIST 0/1/2/3` indicator shows the raw Zepp OS wearing status.
+Zepp defines 0=off, 1=on wrist, 2=motion, 3=uncertain. If the watch reports
+`WRIST 1` while resting off-wrist, **the device's wearing classifier is
+misreporting**. The code cannot establish physical skin contact independently.
+In that case do not treat the BPM value as reliable; we can disable BPM on
+this hardware if the problem continues. No wearer is identified by the app.
