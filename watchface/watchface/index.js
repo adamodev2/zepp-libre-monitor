@@ -1,5 +1,5 @@
 import * as hmUI from "@zos/ui";
-import { Time, Battery, HeartRate, Wear } from "@zos/sensor";
+import { Time, Battery, HeartRate, Wear, Screen } from "@zos/sensor";
 import * as timer from "@zos/timer";
 import { TypedStorage } from "@zos/share-storage";
 import { getScene, SCENE_AOD } from "@zos/app";
@@ -66,6 +66,9 @@ WatchFace({
     this.battery = null;
     this.heart = null;
     this.wear = null;
+    this.screen = null;
+    this.screenCallback = null;
+    try { this.screen = new Screen(); } catch (_) { /* Screen status unavailable */ }
     try { this.wear = new Wear(); } catch (_) { /* Wear detection unavailable */ }
     try { this.battery = new Battery(); } catch (_) { /* Not available */ }
     try { this.heart = new HeartRate(); } catch (_) { /* Permission needed */ }
@@ -116,6 +119,8 @@ WatchFace({
     this.aodDateText = addText(98, 215, 270, 34, 25, MUTED, "--.--.----", aod);
     this.aodGlucoseText = addText(129, 269, 208, 74, 66, WHITE, "--", aod);
     this.aodAgeText = addText(85, 344, 296, 33, 23, MUTED, "NO CGM DATA", aod);
+    // Static marker proves that Zepp selected our AOD instead of a system style.
+    this.aodMarker = addText(133, 387, 200, 26, 19, MUTED, "LIBRE AOD", aod);
 
     // Refresh whenever UI returns from another screen; the minute callback
     // also refreshes the independent AOD instance where supported.
@@ -139,6 +144,25 @@ WatchFace({
         this.wear.onChange(this.wearCallback);
       } catch (_) {
         this.wearCallback = null;
+      }
+    }
+    if (this.screen) {
+      try {
+        this.screenCallback = (status) => {
+          if (this.destroyed) return;
+          if (status === 1) {
+            this.refresh();
+            this.syncHeartMonitoring();
+            this.startForegroundRefresh();
+          } else {
+            this.stopForegroundRefresh();
+            this.stopHeartMonitoring();
+            this.updateHeartText();
+          }
+        };
+        this.screen.onChange(this.screenCallback);
+      } catch (_) {
+        this.screenCallback = null;
       }
     }
     this.syncHeartMonitoring();
@@ -217,6 +241,11 @@ WatchFace({
     return parseGlucoseSnapshot(this.lastRaw, this.clock.getTime());
   },
 
+  isScreenAwake() {
+    try { return this.screen ? this.screen.getStatus() === 1 : getScene() !== SCENE_AOD; }
+    catch (_) { return getScene() !== SCENE_AOD; }
+  },
+
   isWearing() {
     if (!this.wear) return false;
     try {
@@ -235,7 +264,7 @@ WatchFace({
 
   syncHeartMonitoring() {
     const worn = this.isWearing();
-    if (!worn || getScene() === SCENE_AOD) {
+    if (!worn || !this.isScreenAwake()) {
       this.currentBpm = null;
       this.bpmMeasuredAt = 0;
       this.stopHeartMonitoring();
@@ -245,7 +274,7 @@ WatchFace({
     if (!this.heart || this.heartListening) return;
     if (!this.heartCallback) {
       this.heartCallback = () => {
-        if (this.destroyed || !this.isWearing() || getScene() === SCENE_AOD) {
+        if (this.destroyed || !this.isWearing() || !this.isScreenAwake()) {
           this.currentBpm = null;
           this.updateHeartText();
           return;
@@ -269,12 +298,12 @@ WatchFace({
   },
 
   startForegroundRefresh() {
-    if (this.pollTimer !== null || getScene() === SCENE_AOD) return;
+    if (this.pollTimer !== null || !this.isScreenAwake()) return;
     try {
       this.pollTimer = timer.createTimer(
         FOREGROUND_REFRESH_MS, FOREGROUND_REFRESH_MS,
         () => {
-          if (this.destroyed || getScene() === SCENE_AOD) return;
+          if (this.destroyed || !this.isScreenAwake()) return;
           this.refresh();
         }, {}
       );
@@ -348,6 +377,10 @@ WatchFace({
     this.destroyed = true;
     this.stopForegroundRefresh();
     this.stopHeartMonitoring();
+    if (this.screen && this.screenCallback) {
+      try { this.screen.offChange(this.screenCallback); } catch (_) {}
+      this.screenCallback = null;
+    }
     if (this.wear && this.wearCallback) {
       try { this.wear.offChange(this.wearCallback); } catch (_) {}
       this.wearCallback = null;
