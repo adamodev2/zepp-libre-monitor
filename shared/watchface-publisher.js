@@ -13,7 +13,28 @@ export function publishWatchfaceSnapshot(snapshot) {
     const payload = createWatchfacePayload(snapshot);
     if (!payload) return false;
     const shared = new ShareTypedStorage(WATCHFACE_SHARED_SCOPE);
-    shared.putString(WATCHFACE_SHARED_KEY, JSON.stringify(payload));
+    const previousRaw = shared.getString(WATCHFACE_SHARED_KEY, "");
+    if (previousRaw) {
+      try {
+        const previous = JSON.parse(previousRaw);
+        if (Number.isFinite(previous?.timestamp) &&
+            (previous.timestamp > payload.timestamp ||
+             (previous.timestamp === payload.timestamp &&
+              Number(previous.savedAt) > payload.savedAt))) {
+          console.log("[LibreMonitor] WATCHFACE_OLDER_READING_SKIPPED");
+          return false;
+        }
+      } catch (_) {
+        // The previous record was invalid: replace it with validated data.
+      }
+    }
+
+    const serialized = JSON.stringify(payload);
+    shared.putString(WATCHFACE_SHARED_KEY, serialized);
+    if (shared.getString(WATCHFACE_SHARED_KEY, "") !== serialized) {
+      console.log("[LibreMonitor] WATCHFACE_SHARE_VERIFY_FAILED");
+      return false;
+    }
     console.log("[LibreMonitor] WATCHFACE_SNAPSHOT_PUBLISHED");
     return true;
   } catch (_) {
