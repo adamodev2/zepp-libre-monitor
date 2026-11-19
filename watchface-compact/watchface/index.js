@@ -4,12 +4,12 @@ import * as timer from "@zos/timer";
 import { TypedStorage } from "@zos/share-storage";
 import { getScene, SCENE_AOD } from "@zos/app";
 import { isHeartRateDisplayable } from "../lib/heart-confidence";
+import { describeSharedSnapshot } from "../lib/diagnostics";
 import {
   parseGlucoseSnapshot, readingColor, chartCoordinates, linePixels,
 } from "../lib/model";
 import {
   FACE_SIZE, CHART_MINUTES, PANEL, GRAPH, HEART_PILL, BATTERY_PILL,
-  GLUCOSE_TEXT, TREND_ARROW,
   formatFaceTime, formatFaceDate, glucoseAgeLabel, isChartGap,
 } from "../lib/design";
 
@@ -47,12 +47,12 @@ function linePixel(widgets, x, y, color, size = 3) {
   widgets.push(rectangle(Math.round(x), Math.round(y), size, size, color));
 }
 
-function segment(widgets, x1, y1, x2, y2, color, step = 3, size = 3) {
+function segment(widgets, x1, y1, x2, y2, color, step = 3) {
   const distance = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1));
   const divisions = Math.max(1, Math.ceil(distance / step));
   for (let i = 0; i <= divisions; i++) {
     linePixel(widgets, x1 + (x2 - x1) * i / divisions,
-      y1 + (y2 - y1) * i / divisions, color, size);
+      y1 + (y2 - y1) * i / divisions, color);
   }
 }
 
@@ -88,6 +88,7 @@ WatchFace({
     try { this.screen = new Screen(); } catch (_) {}
     this.destroyed = false;
     this.lastRaw = "";
+    this.shareStatus = "BOOT";
     this.chartWidgets = [];
     this.trendWidgets = [];
     this.chartSignature = "";
@@ -114,15 +115,11 @@ WatchFace({
 
     this.dateText = text(75, 48, 316, 34, 28, MUTED, "--- -- ---");
     this.timeText = text(30, 76, 406, 132, 127, WHITE, "--:--");
-    this.glucoseText = text(
-      GLUCOSE_TEXT.x, GLUCOSE_TEXT.y, GLUCOSE_TEXT.w,
-      GLUCOSE_TEXT.h, GLUCOSE_TEXT.size, WHITE, "--", {
+    this.glucoseText = text(48, 225, 164, 96, 89, WHITE, "--", {
       align_h: hmUI.align.CENTER_H,
     });
-    // A subtle full-width axis makes missing history visible without drawing fake values.
-    rectangle(GRAPH.x, GRAPH.y + GRAPH.h - 1, GRAPH.w, 1, 0x29333b);
-    this.rangeText = text(GRAPH.x, 312, 47, 26, 22, MUTED, "2h");
-    this.ageText = text(312, 312, 114, 26, 20, WHITE, "NO DATA", {
+    this.rangeText = text(273, 313, 58, 26, 22, MUTED, "2h");
+    this.ageText = text(332, 313, 92, 26, 19, WHITE, "BOOT 013", {
       align_h: hmUI.align.RIGHT,
     });
     heartIcon(123, 389);
@@ -135,7 +132,7 @@ WatchFace({
     const aod = hmUI.show_level.ONAL_AOD;
     this.aodTimeText = text(92, 145, 282, 85, 84, WHITE, "--:--", { show_level: aod });
     this.aodGlucoseText = text(127, 254, 212, 74, 72, WHITE, "--", { show_level: aod });
-    this.aodAgeText = text(125, 325, 216, 30, 21, MUTED, "NO CGM DATA", {
+    this.aodAgeText = text(125, 325, 216, 30, 21, MUTED, "BOOT 013", {
       show_level: aod,
     });
 
@@ -194,8 +191,9 @@ WatchFace({
       // Only the Mini App (1092841) owns the network connection and publisher.
       const raw = new TypedStorage(PRODUCER_APP_ID, SHARED_SCOPE)
         .getString(SHARED_KEY, "");
+      const now = this.clock.getTime();
+      this.shareStatus = describeSharedSnapshot(raw, now);
       if (raw) {
-        const now = this.clock.getTime();
         const candidate = parseGlucoseSnapshot(raw, now);
         const previous = parseGlucoseSnapshot(this.lastRaw, now);
         if (candidate && (!previous || candidate.timestamp >= previous.timestamp)) {
@@ -203,9 +201,12 @@ WatchFace({
         }
       }
     } catch (_) {
+      this.shareStatus = "READ ERR";
       // Keep the last real reading, never synthesize a fresh one.
     }
-    return parseGlucoseSnapshot(this.lastRaw, this.clock.getTime());
+    const reading = parseGlucoseSnapshot(this.lastRaw, this.clock.getTime());
+    if (reading) this.shareStatus = "READ OK";
+    return reading;
   },
 
   drawTrend(trend, color) {
@@ -215,56 +216,49 @@ WatchFace({
     const [dx, dy] = vector;
     const length = Math.sqrt(dx * dx + dy * dy);
     const ux = dx / length, uy = dy / length;
-    // Center on the glucose glyph, not on the entire panel.
-    const { centerX, centerY, halfLength: half, strokeSize } = TREND_ARROW;
+    const centerX = 235, centerY = 275, half = 13;
     const tailX = centerX - ux * half;
     const tailY = centerY - uy * half;
     const tipX = centerX + ux * half;
     const tipY = centerY + uy * half;
-    segment(this.trendWidgets, tailX, tailY, tipX, tipY, color, 4, strokeSize);
+    segment(this.trendWidgets, tailX, tailY, tipX, tipY, color, 3);
     const px = -uy, py = ux;
-    segment(this.trendWidgets, tipX, tipY,
-      tipX - ux * TREND_ARROW.headLength + px * TREND_ARROW.headWidth,
-      tipY - uy * TREND_ARROW.headLength + py * TREND_ARROW.headWidth,
-      color, 4, strokeSize);
-    segment(this.trendWidgets, tipX, tipY,
-      tipX - ux * TREND_ARROW.headLength - px * TREND_ARROW.headWidth,
-      tipY - uy * TREND_ARROW.headLength - py * TREND_ARROW.headWidth,
-      color, 4, strokeSize);
+    segment(this.trendWidgets, tipX, tipY, tipX - ux * 10 + px * 7,
+      tipY - uy * 10 + py * 7, color, 3);
+    segment(this.trendWidgets, tipX, tipY, tipX - ux * 10 - px * 7,
+      tipY - uy * 10 - py * 7, color, 3);
   },
 
   drawChart(reading, now, color) {
     const signature = Math.floor(now / 60_000) + ":" + this.lastRaw;
     if (signature === this.chartSignature) return;
+    this.chartSignature = signature;
     this.clearWidgets("chartWidgets");
     const points = chartCoordinates(reading, now, GRAPH.w, GRAPH.h, CHART_MINUTES);
     if (points.length === 0) return;
 
-    // Fill and trace only observed, contiguous history. The 2h axis always
-    // stays fixed, so sparse history may use only its right-hand portion.
+    // A quiet filled sparkline. Do not connect gaps exceeding 11 minutes.
     for (let i = 1; i < points.length; i++) {
       const a = points[i - 1], b = points[i];
       if (isChartGap(a, b)) continue;
       const width = Math.max(1, b.x - a.x);
-      // Limit widget count: the full two-hour graph is only 163px wide.
-      for (let dx = 0; dx <= width; dx += 12) {
+      for (let dx = 0; dx <= width; dx += 6) {
         const px = a.x + dx;
         const y = Math.round(a.y + (b.y - a.y) * dx / width);
         this.chartWidgets.push(rectangle(
-          GRAPH.x + px, GRAPH.y + y, 5, Math.max(1, GRAPH.h - 1 - y),
+          GRAPH.x + px, GRAPH.y + y, 5, Math.max(1, GRAPH.h - y),
           GRAPH_FILL
         ));
       }
     }
-    for (const p of linePixels(points, 55)) {
-      linePixel(this.chartWidgets, GRAPH.x + p.x, GRAPH.y + p.y, color, 4);
+    for (const p of linePixels(points, 95)) {
+      linePixel(this.chartWidgets, GRAPH.x + p.x, GRAPH.y + p.y, color, 3);
     }
     const latest = points[points.length - 1];
     this.chartWidgets.push(hmUI.createWidget(hmUI.widget.CIRCLE, {
       center_x: GRAPH.x + latest.x, center_y: GRAPH.y + latest.y,
       radius: 5, color, show_level: hmUI.show_level.ONLY_NORMAL,
     }));
-    this.chartSignature = signature;
   },
 
   isAwake() {
@@ -381,7 +375,8 @@ WatchFace({
     this.aodTimeText.setProperty(hmUI.prop.TEXT, formatFaceTime(now));
     this.aodGlucoseText.setProperty(hmUI.prop.TEXT, reading ? String(reading.value) : "--");
     this.aodGlucoseText.setProperty(hmUI.prop.COLOR, color);
-    this.aodAgeText.setProperty(hmUI.prop.TEXT, glucoseAgeLabel(reading));
+    this.aodAgeText.setProperty(hmUI.prop.TEXT,
+      reading ? glucoseAgeLabel(reading) : this.shareStatus);
 
     if (getScene() === SCENE_AOD) {
       hmUI.redraw();
@@ -391,15 +386,12 @@ WatchFace({
     this.timeText.setProperty(hmUI.prop.TEXT, formatFaceTime(now));
     this.glucoseText.setProperty(hmUI.prop.TEXT, reading ? String(reading.value) : "--");
     this.glucoseText.setProperty(hmUI.prop.COLOR, color);
-    this.ageText.setProperty(hmUI.prop.TEXT, glucoseAgeLabel(reading));
-    // A graph widget allocation failure must never hide the vital
-    // glucose value or prevent the watchface from redrawing its text.
-    try { this.drawTrend(reading?.trend || 0, color); }
-    catch (_) { console.log("[LibreCompact] TREND_RENDER_FAILED"); }
-    try { this.drawChart(reading, now, color); }
-    catch (_) { console.log("[LibreCompact] CHART_RENDER_FAILED"); }
-    try { this.renderHeart(); } catch (_) {}
-    try { this.renderBattery(); } catch (_) {}
+    this.ageText.setProperty(hmUI.prop.TEXT,
+      reading ? glucoseAgeLabel(reading) : this.shareStatus);
+    this.drawTrend(reading?.trend || 0, color);
+    this.drawChart(reading, now, color);
+    this.renderHeart();
+    this.renderBattery();
     hmUI.redraw();
   },
 
