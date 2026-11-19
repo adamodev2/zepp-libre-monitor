@@ -107,3 +107,10 @@ test("diagnostic watchface uses the original snapshot key and shows status only 
   assert.doesNotMatch(source, /SHARED_READING_KEY|chooseSharedSnapshot/);
 });
 
+
+test("all compact face panels and graph fill use the same pure black background", () => {
+  const source = readFileSync(new URL("../watchface/index.js", import.meta.url), "utf8");
+  assert.match(source, /const PANEL_COLOR = 0x000000;/);
+  assert.match(source, /const PILL_COLOR = 0x000000;/);
+  assert.match(source, /const GRAPH_FILL = 0x000000;/);
+});

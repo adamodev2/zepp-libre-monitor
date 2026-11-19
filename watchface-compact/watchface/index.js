@@ -19,9 +19,9 @@ const SHARED_KEY = "snapshot";
 const REFRESH_INTERVAL_MS = 30_000;
 const WHITE = 0xffffff;
 const MUTED = 0x9ba5b3;
-const PANEL_COLOR = 0x151920;
-const GRAPH_FILL = 0x173b2c;
-const PILL_COLOR = 0x171b23;
+const PANEL_COLOR = 0x000000;
+const GRAPH_FILL = 0x000000;
+const PILL_COLOR = 0x000000;
 const HEART_COLOR = 0xff5478;
 const TREND = {
   1: [0, 1], 2: [1, 1], 3: [1, 0], 4: [1, -1], 5: [0, -1],
