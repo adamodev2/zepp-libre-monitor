@@ -2,6 +2,7 @@ import { ShareTypedStorage } from "@zos/storage";
 import {
   WATCHFACE_SHARED_SCOPE,
   WATCHFACE_SHARED_KEY,
+  WATCHFACE_READING_KEY,
   WATCHFACE_RANGE_KEY,
   createWatchfacePayload,
 } from "./watchface-data";
@@ -13,10 +14,15 @@ export function publishWatchfaceSnapshot(snapshot) {
     const payload = createWatchfacePayload(snapshot);
     if (!payload) return false;
     const shared = new ShareTypedStorage(WATCHFACE_SHARED_SCOPE);
-    const previousRaw = shared.getString(WATCHFACE_SHARED_KEY, "");
-    if (previousRaw) {
+    const keys = [WATCHFACE_READING_KEY, WATCHFACE_SHARED_KEY];
+
+    // Avoid rolling a newer background/foreground glucose measurement back.
+    for (const key of keys) {
+      let oldRaw = "";
+      try { oldRaw = shared.getString(key, ""); } catch (_) {}
+      if (!oldRaw) continue;
       try {
-        const previous = JSON.parse(previousRaw);
+        const previous = JSON.parse(oldRaw);
         if (Number.isFinite(previous?.timestamp) &&
             (previous.timestamp > payload.timestamp ||
              (previous.timestamp === payload.timestamp &&
@@ -25,18 +31,35 @@ export function publishWatchfaceSnapshot(snapshot) {
           return false;
         }
       } catch (_) {
-        // The previous record was invalid: replace it with validated data.
+        // Invalid existing data is safe to replace.
       }
     }
 
-    const serialized = JSON.stringify(payload);
-    shared.putString(WATCHFACE_SHARED_KEY, serialized);
-    if (shared.getString(WATCHFACE_SHARED_KEY, "") !== serialized) {
-      console.log("[LibreMonitor] WATCHFACE_SHARE_VERIFY_FAILED");
-      return false;
+    // The lightweight current reading is essential; the large chart is
+    // best effort and must not be able to blank the glucose value.
+    let readingOK = false;
+    try {
+      const serialized = JSON.stringify({ ...payload, points: [] });
+      shared.putString(WATCHFACE_READING_KEY, serialized);
+      readingOK = shared.getString(WATCHFACE_READING_KEY, "") === serialized;
+    } catch (_) {
+      console.log("[LibreMonitor] WATCHFACE_READING_WRITE_FAILED");
     }
-    console.log("[LibreMonitor] WATCHFACE_SNAPSHOT_PUBLISHED");
-    return true;
+
+    let historyOK = false;
+    try {
+      const serialized = JSON.stringify(payload);
+      shared.putString(WATCHFACE_SHARED_KEY, serialized);
+      historyOK = shared.getString(WATCHFACE_SHARED_KEY, "") === serialized;
+    } catch (_) {
+      console.log("[LibreMonitor] WATCHFACE_HISTORY_WRITE_FAILED");
+    }
+
+    if (!readingOK) console.log("[LibreMonitor] WATCHFACE_READING_VERIFY_FAILED");
+    if (!historyOK) console.log("[LibreMonitor] WATCHFACE_HISTORY_VERIFY_FAILED");
+    if (historyOK) console.log("[LibreMonitor] WATCHFACE_SNAPSHOT_PUBLISHED");
+    else if (readingOK) console.log("[LibreMonitor] WATCHFACE_READING_ONLY_PUBLISHED");
+    return readingOK || historyOK;
   } catch (_) {
     console.log("[LibreMonitor] WATCHFACE_SHARE_UNAVAILABLE");
     return false;
