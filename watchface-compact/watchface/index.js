@@ -2,9 +2,11 @@ import * as hmUI from "@zos/ui";
 import { Time, Battery, HeartRate, Wear, Screen } from "@zos/sensor";
 import * as timer from "@zos/timer";
 import { TypedStorage } from "@zos/share-storage";
+import { LocalStorage } from "@zos/storage";
 import { getScene, SCENE_AOD } from "@zos/app";
 import { isHeartRateDisplayable } from "../lib/heart-confidence";
 import { describeSharedSnapshot } from "../lib/diagnostics";
+import { selectReliableGlucoseRaw } from "../lib/reliable-glucose";
 import {
   parseGlucoseSnapshot, readingColor, chartCoordinates, linePixels,
 } from "../lib/model";
@@ -16,6 +18,8 @@ import {
 const PRODUCER_APP_ID = 1092841;
 const SHARED_SCOPE = "libre-glucose-face-v1";
 const SHARED_KEY = "snapshot";
+const SHARED_READING_KEY = "reading";
+const LOCAL_CACHE_KEY = "libre_compact_face_last_valid_v1";
 const REFRESH_INTERVAL_MS = 30_000;
 const WHITE = 0xffffff;
 const MUTED = 0x9ba5b3;
@@ -88,6 +92,14 @@ WatchFace({
     try { this.screen = new Screen(); } catch (_) {}
     this.destroyed = false;
     this.lastRaw = "";
+    this.cacheStorage = null;
+    try {
+      this.cacheStorage = new LocalStorage();
+      const saved = this.cacheStorage.getItem(LOCAL_CACHE_KEY, "");
+      this.lastRaw = typeof saved === "string" ? saved : "";
+    } catch (_) {
+      // The shared storage remains usable if local persistent cache fails.
+    }
     this.shareStatus = "BOOT";
     this.chartWidgets = [];
     this.trendWidgets = [];
@@ -187,26 +199,34 @@ WatchFace({
   },
 
   getGlucose() {
+    const now = this.clock.getTime();
+    let full = "", small = "", failed = false;
     try {
-      // Only the Mini App (1092841) owns the network connection and publisher.
-      const raw = new TypedStorage(PRODUCER_APP_ID, SHARED_SCOPE)
-        .getString(SHARED_KEY, "");
-      const now = this.clock.getTime();
-      this.shareStatus = describeSharedSnapshot(raw, now);
-      if (raw) {
-        const candidate = parseGlucoseSnapshot(raw, now);
-        const previous = parseGlucoseSnapshot(this.lastRaw, now);
-        if (candidate && (!previous || candidate.timestamp >= previous.timestamp)) {
-          this.lastRaw = raw;
-        }
-      }
+      // Each key is independent: failure reading the large chart must not
+      // prevent the small current measurement from being displayed.
+      const shared = new TypedStorage(PRODUCER_APP_ID, SHARED_SCOPE);
+      try { small = shared.getString(SHARED_READING_KEY, ""); }
+      catch (_) { failed = true; }
+      try { full = shared.getString(SHARED_KEY, ""); }
+      catch (_) { failed = true; }
     } catch (_) {
-      this.shareStatus = "READ ERR";
-      // Keep the last real reading, never synthesize a fresh one.
+      failed = true;
     }
-    const reading = parseGlucoseSnapshot(this.lastRaw, this.clock.getTime());
-    if (reading) this.shareStatus = "READ OK";
-    return reading;
+
+    const raw = selectReliableGlucoseRaw([full, small, this.lastRaw], now);
+    if (raw) {
+      if (raw !== this.lastRaw) {
+        this.lastRaw = raw;
+        try { this.cacheStorage?.setItem(LOCAL_CACHE_KEY, raw); }
+        catch (_) { console.log("[LibreCompact] FACE_CACHE_WRITE_FAILED"); }
+      }
+      this.shareStatus = full || small ? "READ OK" : "CACHE";
+      return parseGlucoseSnapshot(this.lastRaw, now);
+    }
+
+    this.shareStatus = failed ? "READ ERR" :
+      full || small ? describeSharedSnapshot(full || small, now) : "NO SHARE";
+    return null;
   },
 
   drawTrend(trend, color) {

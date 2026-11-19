@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check app.js && node --check watchface/index.js && node --check lib/design.js && node --check lib/diagnostics.js && node --check lib/model.js && node --check lib/heart-confidence.js && node --check scripts/prepare-zepp.cjs",
+    "check": "node --check app.js && node --check watchface/index.js && node --check lib/design.js && node --check lib/diagnostics.js && node --check lib/reliable-glucose.js && node --check lib/model.js && node --check lib/heart-confidence.js && node --check scripts/prepare-zepp.cjs",
     "test": "node --test tests/*.test.js",
     "preview": "node scripts/prepare-zepp.cjs && zeus preview",
     "build": "node scripts/prepare-zepp.cjs && zeus build"

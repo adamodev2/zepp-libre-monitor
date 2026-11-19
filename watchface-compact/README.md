@@ -150,3 +150,22 @@ limit is assumed.
 The face background, glucose panel, graph fill and heart-rate/battery pills
 all use pure black (`#000000`). This is a visual-only change; watchface
 glucose sharing, timing, widgets and the Mini App are unchanged.
+
+## Intermittent blank glucose regression (v0.1.5)
+
+The compact face now reads two independently published keys: the small
+`reading` and full-history `snapshot`. Both preserve real CGM timestamps.
+It also persists the **last valid real snapshot in its own LocalStorage**,
+so a watchface restart or a temporary cross-app storage read failure does
+not erase the screen. When shared data resumes, the newest real timestamp
+wins, never an older background result.
+
+A cached reading older than 15 minutes is displayed in the existing dim
+`STALE Xm` state; the value is **not treated as a live measurement**.
+After six hours, the cache is rejected. No dummy readings are generated.
+Actual available graph samples are retained if the lightweight record
+arrives without history.
+
+This version also requires `device:os.local_storage` permission on the
+watchface. To test with the independent publisher, install Libre Monitor
+v0.1.4 first, then this compact face v0.1.5.
