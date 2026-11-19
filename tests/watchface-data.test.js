@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createWatchfacePayload } from "../shared/watchface-data.js";
+import {
+  createWatchfacePayload, createWatchfaceReadingPayload, WATCHFACE_READING_KEY,
+} from "../shared/watchface-data.js";
 
 const NOW = Date.parse("2026-11-18T12:00:00Z");
 
@@ -25,6 +27,20 @@ test("shared payload includes real glucose and recent history only", () => {
     [NOW - 10 * 60_000, 119],
     [NOW - 5 * 60_000, 122],
   ]);
+});
+
+test("minimal shared reading is independent of six-hour history size", () => {
+  const result = createWatchfaceReadingPayload({
+    timestamp: NOW - 60_000, savedAt: NOW,
+    value: 123, trend: 4,
+    history: Array.from({ length: 200 }, (_, i) =>
+      ({ timestamp: NOW - i * 60_000, value: 100 + i % 20 })),
+  }, NOW);
+  assert.equal(WATCHFACE_READING_KEY, "reading");
+  assert.equal(result.timestamp, NOW - 60_000);
+  assert.equal(result.value, 123);
+  assert.deepEqual(result.points, []);
+  assert.ok(JSON.stringify(result).length < 300);
 });
 
 test("shared payload rejects invalid glucose", () => {

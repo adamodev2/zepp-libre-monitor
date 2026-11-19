@@ -1,4 +1,18 @@
 export const DEFAULT_CHART_MINUTES = 360;
+
+// Prefer the newest valid Libre measurement, never a newly-written but older
+// shared-storage record. On equal timestamps, retain the richer history.
+export function chooseSharedSnapshot(snapshotRaw, readingRaw, previousRaw, now = Date.now()) {
+  const candidates = [snapshotRaw, readingRaw, previousRaw]
+    .filter((raw) => typeof raw === "string" && raw.length > 0)
+    .map((raw) => ({ raw, reading: parseGlucoseSnapshot(raw, now) }))
+    .filter(({ reading }) => reading !== null);
+  if (!candidates.length) return "";
+  candidates.sort((a, b) => b.reading.timestamp - a.reading.timestamp ||
+    b.reading.points.length - a.reading.points.length);
+  return candidates[0].raw;
+}
+
 export const STALE_AFTER_MINUTES = 15;
 const MAX_AGE_MS = 6 * 60 * 60_000;
 
