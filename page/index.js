@@ -22,7 +22,8 @@ const MUTED = 0xa4b0bb;
 const GREEN = 0x41d98a;
 const RED = 0xff5d68;
 const AMBER = 0xffc247;
-const REFRESH_INTERVAL_MS = 60_000;
+// The face still refreshes locally; only the server poll rate is reduced.
+const REFRESH_INTERVAL_MS = 120_000;
 const MAX_READING_AGE_MS = 15 * 60_000;
 const REQUEST_TIMEOUT_MS = 20_000;
 const BACKGROUND_SERVICE_PATH = "app-service/history-sync";
@@ -101,7 +102,7 @@ Page(BasePage({
       text: "Refresh", text_size: layout.controls.size,
       color: WHITE, normal_color: 0x263442,
       press_color: 0x405163, radius: 20,
-      click_func: () => this.loadReading(),
+      click_func: () => this.loadReading(true),
     });
     this.backgroundButton = hmUI.createWidget(hmUI.widget.BUTTON, {
       x: controlX + 2 * (controlWidth + controlGap),
@@ -413,7 +414,7 @@ Page(BasePage({
     }
     hmUI.redraw();
   },
-  loadReading() {
+  loadReading(force = false) {
     if (this.requestInFlight || this.destroyed) return;
     this.requestInFlight = true;
     const sequence = ++this.requestSequence;
@@ -432,7 +433,7 @@ Page(BasePage({
         }
         if (this.destroyed || sequence !== this.requestSequence) return null;
         if (!this.hasCachedSnapshot) this.status.setProperty(hmUI.prop.TEXT, "Phone OK, contacting Libre...");
-        return this.request({ method: "GET_GLUCOSE" });
+        return this.request({ method: "GET_GLUCOSE", force });
       })
       .then((response) => {
         if (this.destroyed || sequence !== this.requestSequence) return;
