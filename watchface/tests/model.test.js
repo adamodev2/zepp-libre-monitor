@@ -4,6 +4,7 @@ import {
   parseGlucoseSnapshot, readingColor, chartCoordinates, linePixels,
 } from "../lib/model.js";
 import { isHeartRateDisplayable, MIN_WEAR_DURATION_MS } from "../lib/heart-confidence.js";
+import { selectReliableGlucoseRaw } from "../lib/reliable-glucose.js";
 
 const NOW = Date.parse("2026-11-18T12:00:00Z");
 
@@ -102,4 +103,35 @@ test("watchface exposes raw wear and system AOD state for diagnosis", async () =
   assert.match(source, /getSettings\(\)\?\.standby\?\.style/);
   assert.match(source, /AOD " \+ aodMode/);
   assert.match(source, /"WRIST " \+/);
+});
+
+test("diagnostic face recovers latest glucose from short shared or persisted cache", () => {
+  const full = JSON.stringify({
+    version: 1, timestamp: NOW - 20 * 60_000, value: 112,
+    points: [[NOW - 25 * 60_000, 107], [NOW - 20 * 60_000, 112]],
+  });
+  const small = JSON.stringify({
+    version: 1, timestamp: NOW - 2 * 60_000, value: 125, points: [],
+  });
+  const latest = parseGlucoseSnapshot(selectReliableGlucoseRaw([full, small], NOW), NOW);
+  assert.equal(latest.value, 125);
+  assert.deepEqual(latest.points.map((p) => p.value), [107, 112, 125]);
+  const cached = parseGlucoseSnapshot(selectReliableGlucoseRaw(["", full], NOW), NOW);
+  assert.equal(cached.ageMinutes, 20);
+  assert.equal(readingColor(cached), 0x8b97a4);
+  assert.equal(selectReliableGlucoseRaw(["", JSON.stringify({
+    version: 1, timestamp: NOW - 7 * 60 * 60_000, value: 100,
+  })], NOW), "");
+});
+
+test("diagnostic face retains last glucose across watchface instance restarts", async () => {
+  const { readFileSync } = await import("node:fs");
+  const manifest = JSON.parse(readFileSync(new URL("../app.json", import.meta.url)));
+  const source = readFileSync(new URL("../watchface/index.js", import.meta.url), "utf8");
+  assert.ok(manifest.permissions.includes("device:os.local_storage"));
+  assert.match(source, /new LocalStorage\(\)/);
+  assert.match(source, /getItem\(LOCAL_CACHE_KEY, ""\)/);
+  assert.match(source, /setItem\(LOCAL_CACHE_KEY, raw\)/);
+  assert.match(source, /getString\(SHARED_READING_KEY, ""\)/);
+  assert.match(source, /getString\(SHARED_KEY, ""\)/);
 });

@@ -143,3 +143,17 @@ Zepp defines 0=off, 1=on wrist, 2=motion, 3=uncertain. If the watch reports
 misreporting**. The code cannot establish physical skin contact independently.
 In that case do not treat the BPM value as reliable; we can disable BPM on
 this hardware if the problem continues. No wearer is identified by the app.
+
+## Intermittent missing glucose fix (v0.1.3)
+
+The original face reads both a small shared `reading` record and the full
+`snapshot` graph, keeping the newest real Libre measurement and combining
+only real history samples. It also saves the last valid snapshot locally
+with `LocalStorage`, protected by the `device:os.local_storage` permission.
+
+After a face restart or temporary cross-app storage issue, the last valid
+measurement can still display with its **actual age**. Over 15 minutes it is
+dimmed and marked `STALE`; after six hours it is rejected.
+No fake sensor readings are produced.
+
+For end-to-end testing, install Libre Monitor v0.1.4 before this face v0.1.3.

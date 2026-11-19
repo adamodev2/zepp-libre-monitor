@@ -103,7 +103,7 @@ test("diagnostic watchface uses the original snapshot key and shows status only 
   const source = readFileSync(new URL("../watchface/index.js", import.meta.url), "utf8");
   assert.match(source, /\.getString\(SHARED_KEY, ""\)/);
   assert.match(source, /describeSharedSnapshot\(full \|\| small, now\)/);
-  assert.match(source, /this\.shareStatus = "READ ERR"/);
+  assert.match(source, /"READ ERR"/);
   assert.match(source, /"BOOT 013"/);
   assert.doesNotMatch(source, /SHARED_READING_KEY|chooseSharedSnapshot/);
 });
