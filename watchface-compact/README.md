@@ -5,6 +5,23 @@ The existing diagnostic face in `watchface/` is unchanged and can remain
 installed. This project has its own watchface identity (provisional appId
 `1092843`) so it does not replace the original face (appId `1092842`).
 
+## Design target
+
+![Compact glucose watchface design target](docs/design-target.svg)
+
+The illustration is the **visual goal**, not an actual watch screenshot.
+The time, glucose, graph, heart rate and battery are example values.
+The watchface stays read-only and never generates demo glucose values.
+The two-hour graph starts immediately after the native trend arrow and
+uses true timestamps: if there are fewer than two hours of measurements,
+the uncovered left area remains empty instead of inventing history.
+
+**Reading age:** `5 min` on this watchface means the current glucose
+measurement is five minutes old. It tracks the same Libre measurement timestamp
+as the Mini App's `LIVE 5m` label, *not* the latest repaint, graph fetch,
+or shared-storage publication. Minor differences may occur when the two
+screens are checked at different times.
+
 ## Display
 
 - Large time (HH:MM) with a short English weekday/date above it.
@@ -41,7 +58,8 @@ events. Zepp OS may suspend updates while the screen is asleep.
 2. Install/preview the updated Mini App from the repository root:
    `npm install && npm run preview`.
 3. In Libre Monitor, verify real glucose and switch `BG ON`.
-4. Open the new project:
+4. Open the new project from the **repository root** (do not run from
+   `watchface/`):
    `cd watchface-compact && npm install && npm run check && npm test && npm run preview`.
 5. Scan the new Zepp developer QR in Zepp and activate **Libre Compact Face**
    from installed watch faces. Leave **Libre Glucose Face** installed if
