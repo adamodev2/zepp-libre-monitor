@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createWatchfacePayload } from "../shared/watchface-data.js";
 
 const NOW = Date.parse("2026-11-18T12:00:00Z");
@@ -51,4 +52,14 @@ test("shared record includes the publication timestamp independently from measur
   }, NOW);
   assert.equal(result.publishedAt, NOW);
   assert.equal(result.timestamp, NOW - 10 * 60_000);
+});
+
+test("Mini App release is newer than main and reports watchface share status", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../app.json", import.meta.url)));
+  const source = readFileSync(new URL("../page/index.js", import.meta.url), "utf8");
+  assert.equal(manifest.app.appId, 1092841);
+  assert.ok(manifest.app.version.code > 1);
+  assert.match(source, /publishWatchfaceSnapshot\(snapshot\)/);
+  assert.match(source, /"LIBRE MONITOR · SH "/);
+  assert.match(source, /shared \? "OK" : "ERR"/);
 });
