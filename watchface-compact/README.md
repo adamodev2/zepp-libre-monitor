@@ -47,37 +47,46 @@ LibreLinkUp client and publishes the glucose snapshot using Zepp
 snapshot using `TypedStorage(1092841, "libre-glucose-face-v1")`.
 No credentials, pairing, new service, or network access are added.
 
-## Regression fix: face-only update
-
-The compact watchface has been restored to the original working
-`snapshot` shared-storage reader. **No Libre Monitor reinstall is
-needed for this face-only regression test.** The previous extra
-`reading` key and its publisher changes were reverted, so the Mini App
-remains untouched.
-
-The enlarged arrow and wide graph remain, but widget allocation was
-reduced. An optional graph rendering error must not suppress the glucose
-number or prevent the screen from redrawing.
-
-If the face still shows `NO DATA`, first return to the Mini App, confirm
-its reading is current, then immediately switch back. If that does not
-help, collect the watch's `[LibreCompact]` and
-`[LibreMonitor] WATCHFACE_` log entries. Avoid changing the working Mini App
-until the watchface-specific issue has been isolated.
-
 The background service must actually succeed at refreshing the shared
 snapshot for glucose to update while the Mini App is closed. The watchface
 polls shared storage every 30 seconds while awake and on minute/resume
 events. Zepp OS may suspend updates while the screen is asleep.
 
-## Preview installation (update the face only)
+## Diagnostic regression build (v0.1.3)
 
-1. In the Codespace repository root, run:
-   `git fetch origin && git switch --detach origin/feat/compact-glucose-watchface`.
-2. Run `cd watchface-compact && npm install && npm test && npm run preview`.
-3. Scan **this watchface QR only** to update `Libre Compact Face`.
-4. Compare the glucose value and age with the already-working Libre Monitor.
-   Do **not** reinstall Libre Monitor for this regression test.
+This is a **temporary, controlled A/B test** after the user confirmed that
+glucose was visible before the UI changes but disappeared after a face-only
+update. The code restores the exact original display geometry and data reader
+from initial commit `5c17d4f`. No changes to `Libre Monitor` are required.
+
+When glucose is unavailable, the age label shows one of:
+
+- `NO SHARE`: the publisher's shared `snapshot` key is empty
+- `BAD JSON`: the shared record is not valid JSON
+- `BAD VER` / `BAD VALUE` / `BAD TIME`: payload schema is invalid
+- `FUTURE` / `EXPIRED`: shared timestamp is outside the accepted six-hour window
+- `READ ERR`: opening or reading cross-app shared storage threw an error
+- `BOOT 013`: the build rendered but did not finish its first refresh
+
+The face does not display secret data, and real glucose remains unchanged.
+**Report the exact status text** rather than assuming a synchronization issue.
+If the value displays again, the UI-geometry change is implicated and can
+be reintroduced in isolation. If it remains empty, the status will identify
+which part of shared storage failed.
+
+From the repository root:
+
+```bash
+git fetch origin
+git switch --detach origin/feat/compact-glucose-watchface
+cd watchface-compact
+npm install
+npm test
+npm run preview
+```
+
+Install **only the Libre Compact Face** QR. Keep the current Libre Monitor
+installation unchanged for a meaningful comparison.
 
 **Important:** `1092843` is an unverified/provisional watchface appId.
 Zepp may require a separate appId registered to your developer account;
