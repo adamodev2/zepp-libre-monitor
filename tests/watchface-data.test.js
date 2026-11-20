@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createWatchfacePayload } from "../shared/watchface-data.js";
+import {
+  createWatchfacePayload, createWatchfaceReadingPayload, WATCHFACE_READING_KEY,
+} from "../shared/watchface-data.js";
 
 const NOW = Date.parse("2026-11-18T12:00:00Z");
 
@@ -62,4 +64,30 @@ test("Mini App release is newer than main and reports watchface share status", (
   assert.match(source, /publishWatchfaceSnapshot\(snapshot\)/);
   assert.match(source, /"LIBRE MONITOR · SH "/);
   assert.match(source, /shared \? "OK" : "ERR"/);
+});
+
+test("small shared reading carries the actual measurement without graph size", () => {
+  const full = createWatchfacePayload({
+    timestamp: NOW - 2 * 60_000, savedAt: NOW,
+    value: 123, trend: 4,
+    history: Array.from({ length: 300 }, (_, i) => ({
+      timestamp: NOW - i * 60_000, value: 100 + i % 20,
+    })),
+  }, NOW);
+  const small = createWatchfaceReadingPayload({
+    timestamp: NOW - 2 * 60_000, savedAt: NOW,
+    value: 123, trend: 4, history: [],
+  }, NOW);
+  assert.equal(WATCHFACE_READING_KEY, "reading");
+  assert.equal(small.timestamp, full.timestamp);
+  assert.equal(small.value, full.value);
+  assert.deepEqual(small.points, []);
+  assert.ok(JSON.stringify(small).length < 350);
+});
+
+test("publisher writes the short reading independently from full history", () => {
+  const source = readFileSync(new URL("../shared/watchface-publisher.js", import.meta.url), "utf8");
+  assert.match(source, /shared\.putString\(WATCHFACE_READING_KEY, serialized\)/);
+  assert.match(source, /shared\.putString\(WATCHFACE_SHARED_KEY, serialized\)/);
+  assert.match(source, /return readingOK \|\| historyOK/);
 });

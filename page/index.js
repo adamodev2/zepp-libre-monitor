@@ -165,6 +165,14 @@ Page(BasePage({
       cached.thresholds?.veryLow, cached.thresholds?.veryHigh
     );
     this.history = cached.history;
+    // Restore a recent genuine cached measurement to cross-app storage.
+    // The original measurement age is retained; this is not a fresh CGM read.
+    const recovered = createWatchSnapshot({
+      value: cached.value, trend: cached.trend,
+      ageMs: Date.now() - cached.timestamp,
+      history: cached.history,
+    }, this.thresholds);
+    if (recovered) publishWatchfaceSnapshot(recovered);
     this.value.setProperty(hmUI.prop.TEXT, String(cached.value));
     this.value.setProperty(hmUI.prop.COLOR, this.glucoseColor(cached.value));
     this.renderTrend(cached.trend, this.glucoseColor(cached.value));
