@@ -4,12 +4,12 @@
     "appId": 1092843,
     "appName": "Libre Compact Face",
     "appType": "watchface",
-    "version": { "code": 5, "name": "0.1.4" },
+    "version": { "code": 6, "name": "0.1.5" },
     "vender": "community",
     "description": "Compact glucose face for Amazfit Active 2 Round",
     "icon": "icon.png"
   },
-  "permissions": ["data:user.hd.heart_rate"],
+  "permissions": ["data:user.hd.heart_rate", "device:os.local_storage"],
   "runtime": {
     "apiVersion": { "compatible": "3.0", "target": "3.0", "minVersion": "3.0" }
   },

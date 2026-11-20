@@ -6,6 +6,7 @@ import {
   formatFaceDate, formatFaceTime, glucoseAgeLabel, isChartGap,
 } from "../lib/design.js";
 import { parseGlucoseSnapshot, chartCoordinates, readingColor } from "../lib/model.js";
+import { selectReliableGlucoseRaw } from "../lib/reliable-glucose.js";
 import { isHeartRateDisplayable, MIN_WEAR_DURATION_MS } from "../lib/heart-confidence.js";
 
 const NOW = Date.parse("2026-11-19T12:03:00Z");
@@ -101,7 +102,7 @@ test("shared storage errors are distinguishable from missing Libre glucose", asy
 test("diagnostic watchface uses the original snapshot key and shows status only on failure", () => {
   const source = readFileSync(new URL("../watchface/index.js", import.meta.url), "utf8");
   assert.match(source, /\.getString\(SHARED_KEY, ""\)/);
-  assert.match(source, /describeSharedSnapshot\(raw, now\)/);
+  assert.match(source, /describeSharedSnapshot\(full \|\| small, now\)/);
   assert.match(source, /this\.shareStatus = "READ ERR"/);
   assert.match(source, /"BOOT 013"/);
   assert.doesNotMatch(source, /SHARED_READING_KEY|chooseSharedSnapshot/);
@@ -113,4 +114,51 @@ test("all compact face panels and graph fill use the same pure black background"
   assert.match(source, /const PANEL_COLOR = 0x000000;/);
   assert.match(source, /const PILL_COLOR = 0x000000;/);
   assert.match(source, /const GRAPH_FILL = 0x000000;/);
+});
+
+test("compact face selects the latest valid shared or local measurement", () => {
+  const raw = (age, value, points = []) => JSON.stringify({
+    version: 1, timestamp: NOW - age * 60_000, value, trend: 3, points,
+  });
+  const previous = raw(32, 110);
+  const newest = raw(2, 123);
+  const selected = selectReliableGlucoseRaw(["invalid", "", previous, newest], NOW);
+  const result = parseGlucoseSnapshot(selected, NOW);
+  assert.equal(result.value, 123);
+  assert.equal(result.ageMinutes, 2);
+  assert.equal(selectReliableGlucoseRaw(["", previous], NOW) !== "", true);
+  const cached = parseGlucoseSnapshot(selectReliableGlucoseRaw(["", previous], NOW), NOW);
+  assert.equal(cached.ageMinutes, 32);
+  assert.equal(readingColor(cached), 0x8b97a4, "Older data must be visibly stale");
+});
+
+test("compact face preserves actual chart history on lightweight reading updates", () => {
+  const full = JSON.stringify({
+    version: 1, timestamp: NOW - 7 * 60_000, value: 110,
+    points: [[NOW - 20 * 60_000, 105], [NOW - 7 * 60_000, 110]],
+  });
+  const latest = JSON.stringify({
+    version: 1, timestamp: NOW - 2 * 60_000, value: 119, points: [],
+  });
+  const parsed = parseGlucoseSnapshot(selectReliableGlucoseRaw([full, latest], NOW), NOW);
+  assert.equal(parsed.value, 119);
+  assert.deepEqual(parsed.points.map((p) => p.value), [105, 110, 119]);
+});
+
+test("compact face cannot present a cached reading older than six hours", () => {
+  const old = JSON.stringify({
+    version: 1, timestamp: NOW - 7 * 60 * 60_000, value: 110,
+  });
+  assert.equal(selectReliableGlucoseRaw(["", old], NOW), "");
+});
+
+test("compact face persists last real snapshot across watchface restarts", () => {
+  const source = readFileSync(new URL("../watchface/index.js", import.meta.url), "utf8");
+  const manifest = JSON.parse(readFileSync(new URL("../app.json", import.meta.url)));
+  assert.ok(manifest.permissions.includes("device:os.local_storage"));
+  assert.match(source, /new LocalStorage\(\)/);
+  assert.match(source, /getItem\(LOCAL_CACHE_KEY, ""\)/);
+  assert.match(source, /setItem\(LOCAL_CACHE_KEY, raw\)/);
+  assert.match(source, /getString\(SHARED_READING_KEY, ""\)/);
+  assert.match(source, /getString\(SHARED_KEY, ""\)/);
 });
