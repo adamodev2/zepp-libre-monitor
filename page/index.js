@@ -22,7 +22,8 @@ const MUTED = 0xa4b0bb;
 const GREEN = 0x41d98a;
 const RED = 0xff5d68;
 const AMBER = 0xffc247;
-const REFRESH_INTERVAL_MS = 60_000;
+// The face still refreshes locally; only the server poll rate is reduced.
+const REFRESH_INTERVAL_MS = 120_000;
 const MAX_READING_AGE_MS = 15 * 60_000;
 const REQUEST_TIMEOUT_MS = 20_000;
 const BACKGROUND_SERVICE_PATH = "app-service/history-sync";
@@ -64,7 +65,7 @@ Page(BasePage({
     this.activeTrendColor = null;
   },
   build() {
-    this.heading = label(layout.heading, MUTED, "LIBRE MONITOR");
+    this.heading = label(layout.heading, MUTED, "LIBRE MONITOR · SH ?");
     // Place the 10% larger reading and the smaller trend arrow on one row.
     // Right/left alignment keeps the arrow immediately next to 1-3 digits.
     this.value = label(layout.glucose, WHITE, "--", {
@@ -101,7 +102,7 @@ Page(BasePage({
       text: "Refresh", text_size: layout.controls.size,
       color: WHITE, normal_color: 0x263442,
       press_color: 0x405163, radius: 20,
-      click_func: () => this.loadReading(),
+      click_func: () => this.loadReading(true),
     });
     this.backgroundButton = hmUI.createWidget(hmUI.widget.BUTTON, {
       x: controlX + 2 * (controlWidth + controlGap),
@@ -164,6 +165,14 @@ Page(BasePage({
       cached.thresholds?.veryLow, cached.thresholds?.veryHigh
     );
     this.history = cached.history;
+    // Restore a recent genuine cached measurement to cross-app storage.
+    // The original measurement age is retained; this is not a fresh CGM read.
+    const recovered = createWatchSnapshot({
+      value: cached.value, trend: cached.trend,
+      ageMs: Date.now() - cached.timestamp,
+      history: cached.history,
+    }, this.thresholds);
+    if (recovered) publishWatchfaceSnapshot(recovered);
     this.value.setProperty(hmUI.prop.TEXT, String(cached.value));
     this.value.setProperty(hmUI.prop.COLOR, this.glucoseColor(cached.value));
     this.renderTrend(cached.trend, this.glucoseColor(cached.value));
@@ -179,8 +188,12 @@ Page(BasePage({
     const snapshot = createWatchSnapshot(reading, this.thresholds);
     if (!snapshot) return;
     try {
-      // Publish the same verified glucose data for the read-only watch face.
-      publishWatchfaceSnapshot(snapshot);
+      // This publish operation is independent of the Mini App's local cache.
+      // Show a short status on the already existing debug heading, so a
+      // working glucose display cannot mask a failed watchface publication.
+      const shared = publishWatchfaceSnapshot(snapshot);
+      this.heading?.setProperty(hmUI.prop.TEXT,
+        "LIBRE MONITOR · SH " + (shared ? "OK" : "ERR"));
       if (!saveWatchSnapshot(watchStorage, snapshot)) {
         console.log("[LibreMonitor] WATCH_CACHE_VERIFY_FAILED");
         return;
@@ -409,7 +422,7 @@ Page(BasePage({
     }
     hmUI.redraw();
   },
-  loadReading() {
+  loadReading(force = false) {
     if (this.requestInFlight || this.destroyed) return;
     this.requestInFlight = true;
     const sequence = ++this.requestSequence;
@@ -428,7 +441,7 @@ Page(BasePage({
         }
         if (this.destroyed || sequence !== this.requestSequence) return null;
         if (!this.hasCachedSnapshot) this.status.setProperty(hmUI.prop.TEXT, "Phone OK, contacting Libre...");
-        return this.request({ method: "GET_GLUCOSE" });
+        return this.request({ method: "GET_GLUCOSE", force });
       })
       .then((response) => {
         if (this.destroyed || sequence !== this.requestSequence) return;

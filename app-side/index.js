@@ -12,6 +12,7 @@ function publicError(error) {
   if (message === "Accept updated Abbott terms in LibreLinkUp") return message;
   if (message === "LibreLinkUp sign-in failed") return message;
   if (message === "No shared LibreLinkUp glucose readings found") return message;
+  if (/^HTTP 429: retry in [1-9][0-9]*m$/.test(message)) return message;
   return "LibreLinkUp request failed; see Diagnostics";
 }
 
@@ -35,7 +36,10 @@ AppSideService(BaseSideService({
       const email = settings.settingsStorage.getItem("libre_email");
       const password = settings.settingsStorage.getItem("libre_password");
       if (!email || !password) addDiagnostic("CREDENTIALS_MISSING");
-      const reading = await getGlucose(email, password, addDiagnostic, settings.settingsStorage);
+      const reading = await getGlucose(
+        email, password, addDiagnostic, settings.settingsStorage,
+        !isBackgroundSync && req.force === true
+      );
       if (isBackgroundSync) {
         if (Number.isFinite(reading.ageMs) && reading.ageMs >= -60_000 && reading.ageMs <= 15 * 60_000) {
           markBackgroundSync(settings.settingsStorage, sha256(email.trim().toLowerCase()));

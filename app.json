@@ -5,8 +5,8 @@
     "appName": "Libre Monitor",
     "appType": "app",
     "version": {
-      "code": 1,
-      "name": "0.1.0"
+      "code": 5,
+      "name": "0.1.4"
     },
     "icon": "icon.png",
     "vender": "community",

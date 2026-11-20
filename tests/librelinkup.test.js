@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { getGlucose, resetSession } from "../app-side/librelinkup.js";
 
 const originalFetch = globalThis.fetch;
@@ -85,13 +86,13 @@ test("reuses login session across consecutive readings", async () => {
   ]);
   const events = [];
   await getGlucose("sample@example.invalid", "secret", (event) => events.push(event));
-  await getGlucose("sample@example.invalid", "secret", (event) => events.push(event));
+  await getGlucose("sample@example.invalid", "secret", (event) => events.push(event), null, true);
   assert.equal(calls.length, 3);
   assert.equal(calls.filter((call) => call.url.endsWith("/llu/auth/login")).length, 1);
   assert.ok(events.includes("SESSION_REUSED"));
 });
 
-test("fetches graph history once and reuses it during five-minute refresh interval", async () => {
+test("fetches graph history once and reuses it during ten-minute refresh interval", async () => {
   const withPatient = {
     data: [{
       patientId: "11111111-1111-1111-1111-111111111111",
@@ -107,7 +108,7 @@ test("fetches graph history once and reuses it during five-minute refresh interv
     { body: withPatient },
   ]);
   const first = await getGlucose("sample@example.invalid", "secret");
-  const second = await getGlucose("sample@example.invalid", "secret");
+  const second = await getGlucose("sample@example.invalid", "secret", () => {}, null, true);
   assert.equal(first.history.length, 1);
   assert.equal(second.history.length, 1);
   assert.equal(calls.filter((call) => call.url.endsWith("/graph")).length, 1);
@@ -183,4 +184,94 @@ test("latest Abbott graph age remains distinct from current measurement age", as
   assert.ok(result.ageMs < 2 * 60_000);
   assert.ok(result.historyMeta.graphAgeMinutes >= 20);
   assert.ok(result.historyMeta.graphAgeMinutes <= 22);
+});
+
+test("HTTP 429 on login stops network retries and handles non-JSON responses", async () => {
+  const calls = mockFetch([{ http: 429, body: "Too Many Requests" }]);
+  const events = [];
+  await assert.rejects(
+    getGlucose("sample@example.invalid", "secret", (event) => events.push(event)),
+    /HTTP 429: retry in 30m/
+  );
+  await assert.rejects(getGlucose("sample@example.invalid", "secret"),
+    /HTTP 429: retry in 30m/);
+  assert.equal(calls.length, 1);
+  assert.ok(events.includes("RATE_LIMITED"));
+});
+
+test("HTTP 429 cooldown persists across Side Service session resets", async () => {
+  const stored = new Map();
+  const storage = {
+    getItem(key) { return stored.get(key) ?? null; },
+    setItem(key, value) { stored.set(key, value); },
+  };
+  const calls = mockFetch([{ body: login }, { http: 429, body: "" }]);
+  await assert.rejects(getGlucose("sample@example.invalid", "secret", () => {}, storage),
+    /HTTP 429: retry in 30m/);
+  assert.equal(calls.length, 2);
+  resetSession();
+  await assert.rejects(getGlucose("sample@example.invalid", "secret", () => {}, storage),
+    /HTTP 429: retry in 30m/);
+  assert.equal(calls.length, 2, "No additional calls during persisted cooldown");
+});
+
+test("HTTP 429 on graph leaves a valid current reading and pauses next fetch", async () => {
+  const withPatient = {
+    data: [{
+      patientId: "11111111-1111-1111-1111-111111111111",
+      glucoseMeasurement: reading.data[0].glucoseMeasurement,
+    }],
+  };
+  const calls = mockFetch([
+    { body: login }, { body: withPatient }, { http: 429, body: null },
+  ]);
+  const first = await getGlucose("sample@example.invalid", "secret");
+  assert.equal(first.value, 124);
+  assert.equal(first.history.length, 0);
+  await assert.rejects(getGlucose("sample@example.invalid", "secret"),
+    /HTTP 429: retry in 30m/);
+  assert.equal(calls.length, 3);
+});
+
+test("foreground and background callers share one in-flight LibreLinkUp transaction", async () => {
+  const calls = mockFetch([{ body: login }, { body: reading }]);
+  const first = getGlucose("sample@example.invalid", "secret");
+  const second = getGlucose("sample@example.invalid", "secret");
+  const [a, b] = await Promise.all([first, second]);
+  assert.equal(a.value, 124);
+  assert.equal(b.value, 124);
+  assert.equal(calls.length, 2, "Only one login and connections request");
+});
+
+test("short-term cache reduces HTTP calls without falsifying glucose age", async () => {
+  const measuredAt = Date.now() - 3 * 60_000;
+  const calls = mockFetch([{ body: login }, { body: {
+    data: [{ glucoseMeasurement: {
+      Value: 118, TrendArrow: 3, FactoryTimestamp: new Date(measuredAt).toISOString(),
+    } }],
+  } }]);
+  const first = await getGlucose("sample@example.invalid", "secret");
+  const events = [];
+  const second = await getGlucose("sample@example.invalid", "secret", (e) => events.push(e));
+  assert.equal(calls.length, 2);
+  assert.ok(events.includes("READING_CACHE_REUSED"));
+  assert.equal(second.timestamp, first.timestamp);
+  assert.ok(Math.abs(second.ageMs - (Date.now() - measuredAt)) < 1000);
+});
+
+test("manual forced refresh bypasses cache but shares existing auth session", async () => {
+  const calls = mockFetch([{ body: login }, { body: reading }, { body: reading }]);
+  await getGlucose("sample@example.invalid", "secret");
+  await getGlucose("sample@example.invalid", "secret", () => {}, null, true);
+  assert.equal(calls.length, 3);
+  assert.equal(calls.filter((call) => call.url.endsWith("/llu/auth/login")).length, 1);
+});
+
+test("Mini App polls less often while manual Refresh remains forced", () => {
+  const source = readFileSync(new URL("../page/index.js", import.meta.url), "utf8");
+  const side = readFileSync(new URL("../app-side/index.js", import.meta.url), "utf8");
+  assert.match(source, /REFRESH_INTERVAL_MS = 120_000/);
+  assert.match(source, /click_func: \(\) => this\.loadReading\(true\)/);
+  assert.match(source, /GET_GLUCOSE", force/);
+  assert.match(side, /req\.force === true/);
 });
