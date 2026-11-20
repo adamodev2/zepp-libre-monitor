@@ -32,8 +32,14 @@ This is a **work in progress under active development**, not a finished or medic
 | Account settings and diagnostic events in Zepp | Implemented |
 | In-memory login session reuse (up to 45 minutes) | Implemented; may re-authenticate when the phone service restarts |
 | Optional background synchronization and persisted six-hour history | **Experimental; not yet confirmed to fetch while app is closed** |
-| Live glucose on a watch face / always-on display | **Not implemented** |
+| Glucose watch face (time, date, glucose, graph, BPM, battery) | **MVP on feat/glucose-watchface-mvp; hardware verification pending** |
 | Glucose alarms, insulin calculations or treatment advice | **Not implemented** |
+
+## Watch face MVP
+
+The separate, read-only watch face project is in `watchface/`. The Mini App
+publishes a compact glucose snapshot using Zepp OS shared typed storage.
+See `watchface/README.md` for installation instructions and limitations.
 
 ## What you need
 

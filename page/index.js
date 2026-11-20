@@ -8,6 +8,7 @@ import { BasePage } from "@zeppos/zml/base-page";
 import { normalizeReading, glucoseBand, parseGlucoseThresholds } from "../shared/glucose";
 import { chartSegments, chartStrokePixels } from "../shared/chart";
 import { createWatchLayout } from "../shared/watch-layout";
+import { publishWatchfaceSnapshot, publishWatchfaceChartRange } from "../shared/watchface-publisher";
 import { trendArrowPixels } from "../shared/trend-icon";
 import { BG_DIAGNOSTIC_STORAGE_PATH, BG_SERVICE_DEBUG_KEY, BG_SNAPSHOT_STORAGE_PATH, createWatchSnapshot, readWatchSnapshot, readBackgroundSnapshot, saveWatchSnapshot, readChartRange, saveChartRange } from "../shared/watch-cache";
 
@@ -77,6 +78,7 @@ Page(BasePage({
     this.chartCaption = label(layout.chartCaption, MUTED, "LAST 2 HOURS");
     this.status = label(layout.status, MUTED, "Connecting to LibreLinkUp...");
     this.refreshBackgroundState();
+    publishWatchfaceChartRange(this.chartMinutes);
     const controlWidth = Math.min(80, Math.floor((WIDTH - 94) / 3));
     const controlGap = 7;
     const controlX = Math.round((WIDTH - 3 * controlWidth - 2 * controlGap) / 2);
@@ -89,6 +91,7 @@ Page(BasePage({
       click_func: () => {
         this.chartMinutes = this.chartMinutes === 120 ? 360 : 120;
         saveChartRange(watchStorage, this.chartMinutes);
+        publishWatchfaceChartRange(this.chartMinutes);
         this.drawChart();
       },
     });
@@ -176,6 +179,8 @@ Page(BasePage({
     const snapshot = createWatchSnapshot(reading, this.thresholds);
     if (!snapshot) return;
     try {
+      // Publish the same verified glucose data for the read-only watch face.
+      publishWatchfaceSnapshot(snapshot);
       if (!saveWatchSnapshot(watchStorage, snapshot)) {
         console.log("[LibreMonitor] WATCH_CACHE_VERIFY_FAILED");
         return;

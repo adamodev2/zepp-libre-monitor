@@ -2,6 +2,7 @@ import { Time } from "@zos/sensor";
 import { LocalStorage } from "@zos/storage";
 import { BG_DIAGNOSTIC_STORAGE_PATH, BG_SERVICE_DEBUG_KEY, BG_SNAPSHOT_STORAGE_PATH, BG_SNAPSHOT_KEY, createWatchSnapshot } from "../shared/watch-cache";
 import { BasePage } from "@zeppos/zml/base-page";
+import { publishWatchfaceSnapshot } from "../shared/watchface-publisher";
 
 const SYNC_INTERVAL_MS = 5 * 60_000;
 const REQUEST_TIMEOUT_MS = 2 * 60_000;
@@ -78,6 +79,8 @@ AppService(BasePage({
         if (result?.ok && result.reading) {
           const snapshot = createWatchSnapshot(result.reading, null, timeSensor.getTime());
           if (snapshot) {
+            // Publish fresh measurements even if the local chart cache fails.
+            publishWatchfaceSnapshot(snapshot);
             try {
               backgroundStorage.setItem(BG_SNAPSHOT_KEY, JSON.stringify(snapshot));
               trackBackground("SAVED");
