@@ -12,6 +12,7 @@ function publicError(error) {
   if (message === "Accept updated Abbott terms in LibreLinkUp") return message;
   if (message === "LibreLinkUp sign-in failed") return message;
   if (message === "No shared LibreLinkUp glucose readings found") return message;
+  if (/^HTTP 429: retry in [1-9][0-9]*m$/.test(message)) return message;
   return "LibreLinkUp request failed; see Diagnostics";
 }
 

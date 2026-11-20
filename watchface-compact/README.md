@@ -111,3 +111,16 @@ Mini App's selected chart range.
 
 Experimental non-medical glucose display; do not use it for CGM alarms,
 insulin dosing or safety-critical decisions. Keep official alerts enabled.
+
+## HTTP 429 protection
+
+A real HTTP 429 from any LibreLinkUp login, connection, or graph request
+starts a **local 30-minute cooldown**. The app-side service persists the
+cooldown in its settings storage so restarts and background sync do not
+immediately trigger more network calls. The UI shows
+`HTTP 429: retry in Xm`, or keeps a clearly marked cached reading.
+
+The 30-minute delay is our conservative default, **not** a confirmed
+Abbott rate-limit duration. Stop extra manual Refresh attempts and, if
+needed, disable the BG service until the API recovers. Official Libre
+readings and alarms remain the source for treatment decisions.

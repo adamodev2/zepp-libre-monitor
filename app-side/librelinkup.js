@@ -6,6 +6,8 @@ const ALLOWED_REGIONS = ["", "eu", "us", "ap", "au", "ca", "de", "fr", "jp", "ru
 const SESSION_MAX_AGE_MS = 45 * 60_000;
 const HISTORY_REFRESH_MS = 5 * 60_000;
 const HISTORY_WINDOW_MS = 6 * 60 * 60_000;
+const RATE_LIMIT_PAUSE_MS = 30 * 60_000;
+const RATE_LIMIT_UNTIL_KEY = "libre_api_rate_limit_until_v1";
 const headers = {
   "Content-Type": "application/json",
   Accept: "application/json",
@@ -18,12 +20,50 @@ let session = null;
 let historyCache = { patientId: "", at: 0, points: [] };
 let liveSamples = [];
 let activePatientId = "";
+let rateLimitedUntil = 0;
+
+function readRateLimitUntil(storage) {
+  let persisted = 0;
+  try {
+    persisted = Number(storage?.getItem(RATE_LIMIT_UNTIL_KEY)) || 0;
+  } catch (_) {
+    // In-memory backoff remains active if persistence is unavailable.
+  }
+  // Do not let corrupted timestamps block syncing indefinitely.
+  const now = Date.now();
+  if (persisted > now + 24 * 60 * 60_000) persisted = 0;
+  return Math.max(rateLimitedUntil, persisted);
+}
+
+function limitError(until) {
+  const minutes = Math.max(1, Math.ceil((until - Date.now()) / 60_000));
+  return new Error("HTTP 429: retry in " + minutes + "m");
+}
+
+function guardRateLimit(storage, report) {
+  const until = readRateLimitUntil(storage);
+  if (until <= Date.now()) return;
+  report("RATE_LIMIT_PAUSED", String(Math.ceil((until - Date.now()) / 60_000)));
+  throw limitError(until);
+}
+
+function recordRateLimit(storage, report, step) {
+  rateLimitedUntil = Date.now() + RATE_LIMIT_PAUSE_MS;
+  try {
+    storage?.setItem(RATE_LIMIT_UNTIL_KEY, String(rateLimitedUntil));
+  } catch (_) {
+    // Local memory still prevents rapid consecutive requests.
+  }
+  report("RATE_LIMITED", step);
+  throw limitError(rateLimitedUntil);
+}
 
 export function resetSession() {
   session = null;
   historyCache = { patientId: "", at: 0, points: [] };
   liveSamples = [];
   activePatientId = "";
+  rateLimitedUntil = 0;
 }
 
 function apiHost(region) {
@@ -48,6 +88,11 @@ async function request(url, options = {}) {
     throw new Error(`${step}: network request failed`);
   }
   report(step === "LOGIN" ? "LOGIN_HTTP" : step === "GRAPH" ? "GRAPH_HTTP" : "CONNECTIONS_HTTP", String(response.status || "unknown"));
+  // 429 often has an empty/non-JSON body. Detect before parsing and
+  // stop further requests from foreground and background callers.
+  if (Number(response.status) === 429) {
+    recordRateLimit(options.storage, report, step);
+  }
   let json;
   try {
     json = typeof response.body === "string" ? JSON.parse(response.body) : response.body;
@@ -58,15 +103,15 @@ async function request(url, options = {}) {
   return json;
 }
 
-async function authenticate(email, password, report) {
+async function authenticate(email, password, report, storage) {
   const payload = { email, password };
   let region = "";
   report("LOGIN_STARTED");
-  let login = await request(`${apiHost(region)}/llu/auth/login`, { method: "POST", body: payload, step: "LOGIN", report });
+  let login = await request(`${apiHost(region)}/llu/auth/login`, { method: "POST", body: payload, step: "LOGIN", report, storage });
   if (login.data?.region && login.data.region !== region) {
     region = String(login.data.region).toLowerCase();
     report("LOGIN_REGION", ALLOWED_REGIONS.includes(region) ? region : "unknown");
-    login = await request(`${apiHost(region)}/llu/auth/login`, { method: "POST", body: payload, step: "LOGIN", report });
+    login = await request(`${apiHost(region)}/llu/auth/login`, { method: "POST", body: payload, step: "LOGIN", report, storage });
   }
   if (login.status !== 0 || !login.data?.authTicket?.token || !login.data?.user?.id) {
     report("LOGIN_INVALID", String(Number(login.status) || 0));
@@ -81,11 +126,12 @@ async function authenticate(email, password, report) {
   };
 }
 
-async function connectionRequest(auth, report) {
+async function connectionRequest(auth, report, storage) {
   return request(`${auth.host}/llu/connections`, {
     headers: { ...headers, Authorization: `Bearer ${auth.token}`, "account-id": auth.accountId },
     step: "CONNECTIONS",
     report,
+    storage,
   });
 }
 
@@ -124,7 +170,7 @@ function combineHistory(graphPoints, current, patientId, now, storage) {
   return result;
 }
 
-async function loadHistory(auth, patientId, report) {
+async function loadHistory(auth, patientId, report, storage) {
   if (!/^[a-z0-9-]{1,80}$/i.test(patientId)) return [];
   if (historyCache.patientId === patientId && Date.now() - historyCache.at < HISTORY_REFRESH_MS) {
     return historyCache.points;
@@ -134,6 +180,7 @@ async function loadHistory(auth, patientId, report) {
       headers: { ...headers, Authorization: `Bearer ${auth.token}`, "account-id": auth.accountId },
       step: "GRAPH",
       report,
+      storage,
     });
     const points = parseHistory(graph.data?.graphData, Date.now());
     historyCache = { patientId, at: Date.now(), points };
@@ -148,23 +195,24 @@ async function loadHistory(auth, patientId, report) {
 
 export async function getGlucose(email, password, report = () => {}, storage = null) {
   if (!email || !password) throw new Error("Configure LibreLinkUp account in Zepp settings");
+  guardRateLimit(storage, report);
   const key = sha256(email + "\n" + password);
   if (!session || session.key !== key || Date.now() - session.at >= SESSION_MAX_AGE_MS) {
     resetSession();
-    session = await authenticate(email, password, report);
+    session = await authenticate(email, password, report, storage);
   } else {
     report("SESSION_REUSED");
   }
 
   let connections;
   try {
-    connections = await connectionRequest(session, report);
+    connections = await connectionRequest(session, report, storage);
   } catch (error) {
     if (!/CONNECTIONS: HTTP 401/.test(String(error.message))) throw error;
     // A revoked or expired token is retried with a fresh login just once.
     resetSession();
-    session = await authenticate(email, password, report);
-    connections = await connectionRequest(session, report);
+    session = await authenticate(email, password, report, storage);
+    connections = await connectionRequest(session, report, storage);
   }
 
   const connection = connections.data?.[0];
@@ -180,7 +228,7 @@ export async function getGlucose(email, password, report = () => {}, storage = n
   if (ageMs !== null && (ageMs < -60_000 || ageMs > 900_000)) report("REQUEST_FAILED", "READING_STALE");
 
   const patientId = typeof connection.patientId === "string" ? connection.patientId : "";
-  const graphHistory = await loadHistory(session, patientId, report);
+  const graphHistory = await loadHistory(session, patientId, report, storage);
   const now = Date.now();
   const patientKey = sha256(patientId || email.trim().toLowerCase());
   const history = combineHistory(

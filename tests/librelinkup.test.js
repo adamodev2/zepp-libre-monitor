@@ -184,3 +184,50 @@ test("latest Abbott graph age remains distinct from current measurement age", as
   assert.ok(result.historyMeta.graphAgeMinutes >= 20);
   assert.ok(result.historyMeta.graphAgeMinutes <= 22);
 });
+
+test("HTTP 429 on login stops network retries and handles non-JSON responses", async () => {
+  const calls = mockFetch([{ http: 429, body: "Too Many Requests" }]);
+  const events = [];
+  await assert.rejects(
+    getGlucose("sample@example.invalid", "secret", (event) => events.push(event)),
+    /HTTP 429: retry in 30m/
+  );
+  await assert.rejects(getGlucose("sample@example.invalid", "secret"),
+    /HTTP 429: retry in 30m/);
+  assert.equal(calls.length, 1);
+  assert.ok(events.includes("RATE_LIMITED"));
+});
+
+test("HTTP 429 cooldown persists across Side Service session resets", async () => {
+  const stored = new Map();
+  const storage = {
+    getItem(key) { return stored.get(key) ?? null; },
+    setItem(key, value) { stored.set(key, value); },
+  };
+  const calls = mockFetch([{ body: login }, { http: 429, body: "" }]);
+  await assert.rejects(getGlucose("sample@example.invalid", "secret", () => {}, storage),
+    /HTTP 429: retry in 30m/);
+  assert.equal(calls.length, 2);
+  resetSession();
+  await assert.rejects(getGlucose("sample@example.invalid", "secret", () => {}, storage),
+    /HTTP 429: retry in 30m/);
+  assert.equal(calls.length, 2, "No additional calls during persisted cooldown");
+});
+
+test("HTTP 429 on graph leaves a valid current reading and pauses next fetch", async () => {
+  const withPatient = {
+    data: [{
+      patientId: "11111111-1111-1111-1111-111111111111",
+      glucoseMeasurement: reading.data[0].glucoseMeasurement,
+    }],
+  };
+  const calls = mockFetch([
+    { body: login }, { body: withPatient }, { http: 429, body: null },
+  ]);
+  const first = await getGlucose("sample@example.invalid", "secret");
+  assert.equal(first.value, 124);
+  assert.equal(first.history.length, 0);
+  await assert.rejects(getGlucose("sample@example.invalid", "secret"),
+    /HTTP 429: retry in 30m/);
+  assert.equal(calls.length, 3);
+});
