@@ -4,6 +4,8 @@ import * as timer from "@zos/timer";
 import { getSettings } from "@zos/display";
 import { isHeartRateDisplayable } from "../lib/heart-confidence";
 import { TypedStorage } from "@zos/share-storage";
+import { LocalStorage } from "@zos/storage";
+import { selectReliableGlucoseRaw } from "../lib/reliable-glucose";
 import { getScene, SCENE_AOD } from "@zos/app";
 import {
   STALE_AFTER_MINUTES, parseGlucoseSnapshot,
@@ -13,6 +15,8 @@ import {
 const APP_ID = 1092841;
 const SHARED_SCOPE = "libre-glucose-face-v1";
 const SHARED_KEY = "snapshot";
+const SHARED_READING_KEY = "reading";
+const LOCAL_CACHE_KEY = "libre_diagnostic_face_last_valid_v1";
 const CHART_RANGE_KEY = "chart_range_minutes";
 const FOREGROUND_REFRESH_MS = 30_000;
 const WHITE = 0xffffff;
@@ -76,6 +80,14 @@ WatchFace({
     this.chartWidgets = [];
     this.trendWidgets = [];
     this.lastRaw = "";
+    this.cacheStorage = null;
+    try {
+      this.cacheStorage = new LocalStorage();
+      const saved = this.cacheStorage.getItem(LOCAL_CACHE_KEY, "");
+      this.lastRaw = typeof saved === "string" ? saved : "";
+    } catch (_) {
+      // Shared storage remains available even when local cache is denied.
+    }
     this.destroyed = false;
     this.heartCallback = null;
     this.heartListening = false;
@@ -227,26 +239,32 @@ WatchFace({
   },
 
   getGlucose() {
+    const now = this.clock.getTime();
+    let full = "", small = "";
     try {
-      // Re-create the reader so watchface sees AppService writes made later.
+      // Recreate the shared reader on every refresh to observe AppService
+      // writes from the other Mini App process.
       const storage = new TypedStorage(APP_ID, SHARED_SCOPE);
-      const range = storage.getInt(CHART_RANGE_KEY, 360);
-      this.chartMinutes = range === 120 ? 120 : 360;
-      const raw = storage.getString(SHARED_KEY, "");
-      if (raw) {
-        const candidate = parseGlucoseSnapshot(raw, this.clock.getTime());
-        const previous = parseGlucoseSnapshot(this.lastRaw, this.clock.getTime());
-        // A slower background sync must not make an active watchface
-        // jump backward to an older reading.
-        if (candidate && (!previous || candidate.timestamp >= previous.timestamp)) {
-          this.lastRaw = raw;
-        }
+      try {
+        const range = storage.getInt(CHART_RANGE_KEY, 360);
+        this.chartMinutes = range === 120 ? 120 : 360;
+      } catch (_) {
+        // A chart preference error must not suppress the glucose reading.
       }
+      try { small = storage.getString(SHARED_READING_KEY, ""); }
+      catch (_) { console.log("[LibreFace] READING_READ_FAILED"); }
+      try { full = storage.getString(SHARED_KEY, ""); }
+      catch (_) { console.log("[LibreFace] HISTORY_READ_FAILED"); }
     } catch (_) {
-      // If cross-app storage is unavailable keep the last known record,
-      // but continue updating its age. Never fabricate an up-to-date value.
+      console.log("[LibreFace] SHARE_UNAVAILABLE");
     }
-    return parseGlucoseSnapshot(this.lastRaw, this.clock.getTime());
+    const raw = selectReliableGlucoseRaw([full, small, this.lastRaw], now);
+    if (raw && raw !== this.lastRaw) {
+      this.lastRaw = raw;
+      try { this.cacheStorage?.setItem(LOCAL_CACHE_KEY, raw); }
+      catch (_) { console.log("[LibreFace] CACHE_WRITE_FAILED"); }
+    }
+    return parseGlucoseSnapshot(this.lastRaw, now);
   },
 
   isScreenAwake() {
