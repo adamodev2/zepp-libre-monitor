@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 466 466" width="466" height="466" role="img" aria-label="Target compact Libre glucose watchface with large time, a two-hour chart, heart rate and battery">
+  <!-- Design reference only; numbers are illustrative, not readings. -->
+  <defs>
+    <clipPath id="face"><circle cx="233" cy="233" r="233"/></clipPath>
+    <linearGradient id="graph-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#43dd8e" stop-opacity=".32"/>
+      <stop offset="1" stop-color="#43dd8e" stop-opacity=".025"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#face)">
+    <rect width="466" height="466" fill="#000"/>
+    <text x="233" y="71" text-anchor="middle" fill="#9ba5b3" font-family="Arial,Helvetica,sans-serif" font-weight="700" letter-spacing="4.5" font-size="26">THU 19 NOV</text>
+    <text x="233" y="188" text-anchor="middle" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-weight="900" letter-spacing="-6" font-size="120">02:09</text>
+    <rect x="26" y="208" width="414" height="143" rx="35" fill="#151920"/>
+    <text x="49" y="313" fill="#43dd8e" font-family="Arial,Helvetica,sans-serif" font-weight="800" font-size="91" letter-spacing="-6">118</text>
+    <g fill="none" stroke="#43dd8e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M216 273 H249 M236 260 L249 273 L236 286"/>
+    </g>
+    <path d="M261 287 C281 279,290 261,305 262 S339 275,353 278 S382 281,395 283 S409 279,423 281 L423 304 L261 304 Z" fill="url(#graph-fill)"/>
+    <path d="M261 287 C281 279,290 261,305 262 S339 275,353 278 S382 281,395 283 S409 279,423 281" fill="none" stroke="#43dd8e" stroke-width="3.5" stroke-linecap="round"/>
+    <circle cx="423" cy="281" r="5.8" fill="#43dd8e" stroke="#151920" stroke-width="2"/>
+    <text x="267" y="332" font-family="Arial,Helvetica,sans-serif" font-weight="600" fill="#9ba5b3" font-size="21">2h</text>
+    <text x="422" y="332" text-anchor="end" font-family="Arial,Helvetica,sans-serif" font-weight="700" fill="#fff" font-size="21">3 min</text>
+    <rect x="104" y="373" width="108" height="46" rx="23" fill="#171b23"/>
+    <rect x="226" y="373" width="146" height="46" rx="23" fill="#171b23"/>
+    <path d="M132 396 C126 387,115 391,115 400 C115 409,132 419,132 419 C132 419,149 408,149 400 C149 391,137 387,132 396 Z" fill="#ff5478" transform="translate(0,-7) scale(.92) translate(12,34)"/>
+    <text x="174" y="407" text-anchor="middle" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="31" font-weight="700">72</text>
+    <rect x="246" y="389" width="27" height="19" rx="5" fill="none" stroke="white" stroke-width="3.5"/>
+    <rect x="250" y="393" width="19" height="11" rx="2" fill="white"/>
+    <rect x="274" y="396" width="3" height="6" rx="1" fill="white"/>
+    <text x="325" y="408" text-anchor="middle" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="31" font-weight="700">84%</text>
+  </g>
+</svg>

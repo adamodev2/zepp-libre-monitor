@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   FACE_SIZE, CHART_MINUTES, PANEL, GRAPH, HEART_PILL, BATTERY_PILL,
+  GLUCOSE_TEXT, TREND_ARROW,
   formatFaceDate, formatFaceTime, glucoseAgeLabel, isChartGap,
 } from "../lib/design.js";
 import { parseGlucoseSnapshot, chartCoordinates, readingColor } from "../lib/model.js";
@@ -22,6 +23,13 @@ test("all design elements fit inside a round 466px watch", () => {
   assert.ok(GRAPH.x >= PANEL.x && GRAPH.x + GRAPH.w <= PANEL.x + PANEL.w);
   assert.ok(GRAPH.y >= PANEL.y && GRAPH.y + GRAPH.h <= PANEL.y + PANEL.h);
   assert.equal(CHART_MINUTES, 120);
+  assert.equal(TREND_ARROW.centerY, GLUCOSE_TEXT.y + GLUCOSE_TEXT.h / 2);
+  assert.ok(TREND_ARROW.halfLength >= 16);
+  assert.ok(GRAPH.x - (TREND_ARROW.centerX + TREND_ARROW.halfLength) <= 16,
+    "Sparkline must begin immediately after the trend arrow");
+  assert.ok(GRAPH.x > TREND_ARROW.centerX + TREND_ARROW.halfLength);
+  assert.ok(GRAPH.w >= 160, "Sparkline must use the remaining panel width");
+  assert.ok(GRAPH.x + GRAPH.w <= PANEL.x + PANEL.w - 10);
 });
 
 test("date, time and data age are formatted from real timestamps", () => {
@@ -50,6 +58,32 @@ test("sparkline uses real two-hour history and leaves gaps disconnected", () => 
   assert.equal(isChartGap(points[1], points[2]), true);
   assert.equal(isChartGap(points[2], points[3]), false);
   assert.equal(readingColor(reading), 0x41d98a);
+});
+
+test("the age caption tracks the same measurement timestamp as Mini App LIVE", () => {
+  const publishedAt = NOW - 30_000;
+  const measuredAt = NOW - 5 * 60_000;
+  const reading = {
+    version: 1, timestamp: measuredAt, publishedAt,
+    value: 118, trend: 3, points: [],
+  };
+  const first = parseGlucoseSnapshot(reading, NOW);
+  assert.equal(glucoseAgeLabel(first), "5 min");
+  assert.equal(first.publishAgeMinutes, 0);
+  const later = parseGlucoseSnapshot(reading, NOW + 2 * 60_000);
+  assert.equal(glucoseAgeLabel(later), "7 min");
+  assert.equal(later.publishAgeMinutes, 2);
+  assert.equal(glucoseAgeLabel(parseGlucoseSnapshot(reading,
+    NOW + 11 * 60_000)), "STALE 16m");
+});
+
+test("short history remains on its true two-hour timeline", () => {
+  const reading = parseGlucoseSnapshot({
+    version: 1, timestamp: NOW - 3 * 60_000, value: 118,
+    points: [[NOW - 20 * 60_000, 110], [NOW - 3 * 60_000, 118]],
+  }, NOW);
+  const points = chartCoordinates(reading, NOW, GRAPH.w, GRAPH.h, CHART_MINUTES);
+  assert.ok(points[0].x > GRAPH.w / 2, "Missing older values must remain blank");
 });
 
 test("fresh heartbeat requires confirmed wear, multiple callbacks, and new samples", () => {
