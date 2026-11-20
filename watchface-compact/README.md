@@ -124,3 +124,23 @@ The 30-minute delay is our conservative default, **not** a confirmed
 Abbott rate-limit duration. Stop extra manual Refresh attempts and, if
 needed, disable the BG service until the API recovers. Official Libre
 readings and alarms remain the source for treatment decisions.
+
+## Reduced LibreLinkUp requests (v0.1.3)
+
+- Foreground Mini App now polls the phone every **2 minutes**, previously
+  every minute. Manual **Refresh** still bypasses the short-term cache.
+- App-side requests made within **90 seconds** reuse the last real reading
+  and recompute its age from the **original sensor timestamp**, never
+  the cache age. Foreground and BG requests arriving simultaneously share
+  one in-flight network transaction.
+- The Abbott graph endpoint is fetched no more than once every **10 minutes**
+  per active AppSide session, previously five minutes. The graph still
+  includes recent actual readings acquired from the connections endpoint.
+- The independent BG service remains at **5 minutes**, so that CGM updates
+  continue to reach both watchfaces while the Mini App is closed.
+- The existing **30-minute 429 cooldown** remains in place.
+
+This lowers avoidable API load while preserving each reading's actual
+measurement timestamp, glucose age and stale-data warnings. Network
+savings depend on app usage and BG scheduling; no official Abbott rate
+limit is assumed.

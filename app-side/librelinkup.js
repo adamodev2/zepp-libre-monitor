@@ -4,7 +4,8 @@ import { readStoredHistory, saveStoredHistory, readBackgroundSyncAgeMinutes } fr
 
 const ALLOWED_REGIONS = ["", "eu", "us", "ap", "au", "ca", "de", "fr", "jp", "ru"];
 const SESSION_MAX_AGE_MS = 45 * 60_000;
-const HISTORY_REFRESH_MS = 5 * 60_000;
+const HISTORY_REFRESH_MS = 10 * 60_000;
+const READING_CACHE_MS = 90_000;
 const HISTORY_WINDOW_MS = 6 * 60 * 60_000;
 const RATE_LIMIT_PAUSE_MS = 30 * 60_000;
 const RATE_LIMIT_UNTIL_KEY = "libre_api_rate_limit_until_v1";
@@ -21,6 +22,27 @@ let historyCache = { patientId: "", at: 0, points: [] };
 let liveSamples = [];
 let activePatientId = "";
 let rateLimitedUntil = 0;
+let inFlightReading = null;
+let latestReading = null;
+
+// Reuse successful LibreLinkUp requests for concurrent foreground/background
+// callers. Cached data keeps its original measurement timestamp.
+function withUpdatedAge(record, recordedAt, now) {
+  const elapsedMs = Math.max(0, now - recordedAt);
+  return {
+    ...record,
+    ageMs: now - record.timestamp,
+    history: record.history.map((sample) => ({
+      ...sample, ageMinutes: sample.ageMinutes + elapsedMs / 60_000,
+    })),
+    historyMeta: {
+      ...record.historyMeta,
+      graphAgeMinutes: Number.isFinite(record.historyMeta?.graphAgeMinutes)
+        ? record.historyMeta.graphAgeMinutes + Math.floor(elapsedMs / 60_000)
+        : null,
+    },
+  };
+}
 
 function readRateLimitUntil(storage) {
   let persisted = 0;
@@ -64,6 +86,8 @@ export function resetSession() {
   liveSamples = [];
   activePatientId = "";
   rateLimitedUntil = 0;
+  inFlightReading = null;
+  latestReading = null;
 }
 
 function apiHost(region) {
@@ -193,10 +217,36 @@ async function loadHistory(auth, patientId, report, storage) {
   }
 }
 
-export async function getGlucose(email, password, report = () => {}, storage = null) {
+export async function getGlucose(email, password, report = () => {}, storage = null, force = false) {
   if (!email || !password) throw new Error("Configure LibreLinkUp account in Zepp settings");
   guardRateLimit(storage, report);
   const key = sha256(email + "\n" + password);
+  // One server transaction can serve the foreground Mini App and the BG
+  // service, even when they ask at almost the same moment.
+  if (inFlightReading?.key === key) {
+    report("REQUEST_COALESCED");
+    return inFlightReading.promise;
+  }
+  if (!force && latestReading?.key === key &&
+      Date.now() - latestReading.at < READING_CACHE_MS) {
+    report("READING_CACHE_REUSED");
+    return withUpdatedAge(latestReading.record, latestReading.at, Date.now());
+  }
+
+  const promise = fetchGlucoseFromServer(email, password, report, storage, key)
+    .then((record) => {
+      latestReading = { key, at: Date.now(), record };
+      return record;
+    });
+  inFlightReading = { key, promise };
+  try {
+    return await promise;
+  } finally {
+    if (inFlightReading?.promise === promise) inFlightReading = null;
+  }
+}
+
+async function fetchGlucoseFromServer(email, password, report, storage, key) {
   if (!session || session.key !== key || Date.now() - session.at >= SESSION_MAX_AGE_MS) {
     resetSession();
     session = await authenticate(email, password, report, storage);
