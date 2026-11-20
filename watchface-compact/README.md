@@ -47,42 +47,37 @@ LibreLinkUp client and publishes the glucose snapshot using Zepp
 snapshot using `TypedStorage(1092841, "libre-glucose-face-v1")`.
 No credentials, pairing, new service, or network access are added.
 
-The Mini App must be installed from this branch, not an older `main`
-build: previous versions of the app do not publish any cross-app glucose data.
-After preview-installing the Mini App from the **repository root**, open it
-and press **Refresh**. Then reactivate the compact face.
+## Regression fix: face-only update
 
-The publisher now writes a small `reading` record separately from the
-full `snapshot` history. This allows the face to display the latest real
-glucose even if the larger history cannot be stored/read. The graph only
-appears when real history is available.
+The compact watchface has been restored to the original working
+`snapshot` shared-storage reader. **No Libre Monitor reinstall is
+needed for this face-only regression test.** The previous extra
+`reading` key and its publisher changes were reverted, so the Mini App
+remains untouched.
 
-If glucose is unavailable, the age field briefly acts as a connection
-diagnostic: `NO SHARE` means no shared records found (check the installed
-Mini App version), `BAD SHARE` means shared data exists but failed validation,
-and `READ ERROR` means storage access threw an error. None of these means
-that LibreLinkUp itself has no glucose.
+The enlarged arrow and wide graph remain, but widget allocation was
+reduced. An optional graph rendering error must not suppress the glucose
+number or prevent the screen from redrawing.
+
+If the face still shows `NO DATA`, first return to the Mini App, confirm
+its reading is current, then immediately switch back. If that does not
+help, collect the watch's `[LibreCompact]` and
+`[LibreMonitor] WATCHFACE_` log entries. Avoid changing the working Mini App
+until the watchface-specific issue has been isolated.
 
 The background service must actually succeed at refreshing the shared
 snapshot for glucose to update while the Mini App is closed. The watchface
 polls shared storage every 30 seconds while awake and on minute/resume
 events. Zepp OS may suspend updates while the screen is asleep.
 
-## Preview installation
+## Preview installation (update the face only)
 
-1. Switch to branch `feat/compact-glucose-watchface` in the Codespace.
-2. From the **repository root**, run `npm install && npm run preview` and
-   scan the first Zepp QR. This updates **Libre Monitor** (appId `1092841`),
-   which is the data publisher. Do not skip this step even if Libre Monitor
-   already displays glucose.
-3. Open Libre Monitor on the watch and press **Refresh**. Confirm live glucose;
-   use `BG ON` for future background updates.
-4. Return to the root folder, then run
-   `cd watchface-compact && npm install && npm run check && npm test && npm run preview`.
-5. Scan the **second QR** to update **Libre Compact Face** (appId `1092843`).
-   The order matters: publisher first, reader second.
-6. Activate the compact face and verify the age field shows `Xm` rather
-   than `NO SHARE`. The installed original diagnostic face is unchanged.
+1. In the Codespace repository root, run:
+   `git fetch origin && git switch --detach origin/feat/compact-glucose-watchface`.
+2. Run `cd watchface-compact && npm install && npm test && npm run preview`.
+3. Scan **this watchface QR only** to update `Libre Compact Face`.
+4. Compare the glucose value and age with the already-working Libre Monitor.
+   Do **not** reinstall Libre Monitor for this regression test.
 
 **Important:** `1092843` is an unverified/provisional watchface appId.
 Zepp may require a separate appId registered to your developer account;

@@ -6,9 +6,7 @@ import {
   GLUCOSE_TEXT, TREND_ARROW,
   formatFaceDate, formatFaceTime, glucoseAgeLabel, isChartGap,
 } from "../lib/design.js";
-import {
-  parseGlucoseSnapshot, chooseSharedSnapshot, chartCoordinates, readingColor,
-} from "../lib/model.js";
+import { parseGlucoseSnapshot, chartCoordinates, readingColor } from "../lib/model.js";
 import { isHeartRateDisplayable, MIN_WEAR_DURATION_MS } from "../lib/heart-confidence.js";
 
 const NOW = Date.parse("2026-11-19T12:03:00Z");
@@ -88,37 +86,6 @@ test("short history remains on its true two-hour timeline", () => {
   assert.ok(points[0].x > GRAPH.w / 2, "Missing older values must remain blank");
 });
 
-test("shared reading fallback works when the history record is absent or malformed", () => {
-  const compact = JSON.stringify({
-    version: 1, timestamp: NOW - 2 * 60_000,
-    value: 118, trend: 3, points: [],
-  });
-  assert.equal(chooseSharedSnapshot("", compact, "", NOW), compact);
-  assert.equal(chooseSharedSnapshot("invalid JSON", compact, "", NOW), compact);
-  assert.equal(chooseSharedSnapshot("", "", "", NOW), "");
-  const old = JSON.stringify({
-    version: 1, timestamp: NOW - 8 * 60_000,
-    value: 110, trend: 3, points: [],
-  });
-  assert.equal(chooseSharedSnapshot(old, compact, "", NOW), compact);
-  assert.equal(chooseSharedSnapshot("", old, compact, NOW), compact,
-    "An older background reading must never roll back the current value");
-});
-
-test("shared full history wins over the minimal reading at equal timestamps", () => {
-  const reading = {
-    version: 1, timestamp: NOW - 2 * 60_000,
-    value: 118, trend: 3, points: [],
-  };
-  const short = JSON.stringify(reading);
-  const full = JSON.stringify({
-    ...reading,
-    points: [[NOW - 8 * 60_000, 113], [NOW - 2 * 60_000, 118]],
-  });
-  assert.equal(chooseSharedSnapshot(full, short, "", NOW), full);
-  assert.equal(chooseSharedSnapshot(short, short, full, NOW), full);
-});
-
 test("fresh heartbeat requires confirmed wear, multiple callbacks, and new samples", () => {
   const data = {
     wearStatus: 1, wearingSince: NOW - MIN_WEAR_DURATION_MS - 1,
@@ -136,12 +103,18 @@ test("the face is read-only, has no diagnostic text and declares normal/AOD widg
   assert.equal(manifest.app.appType, "watchface");
   assert.equal(manifest.app.appId, 1092843);
   assert.match(source, /new TypedStorage\(PRODUCER_APP_ID, SHARED_SCOPE\)/);
-  assert.match(source, /SHARED_READING_KEY/);
-  assert.match(source, /"NO SHARE"/);
-  assert.match(source, /"BAD SHARE"/);
-  assert.match(source, /"READ ERROR"/);
   assert.match(source, /show_level\.ONAL_AOD/);
   assert.match(source, /WIDGET_DELEGATE/);
   assert.match(source, /onPerMinute/);
   assert.doesNotMatch(source, /"WRIST |"SHARE |"AOD SYSTEM|BG TICK|fetch\(/);
+});
+
+test("the face keeps its original shared snapshot reader", () => {
+  const source = readFileSync(new URL("../watchface/index.js", import.meta.url), "utf8");
+  assert.match(source, /getString\(SHARED_KEY, ""\)/);
+  assert.doesNotMatch(source, /SHARED_READING_KEY|chooseSharedSnapshot/);
+  assert.match(source, /hmUI\.redraw\(\)/);
+  assert.match(source, /CHART_RENDER_FAILED/);
+  assert.match(source, /TREND_RENDER_FAILED/);
+  assert.match(source, /linePixels\(points, 55\)/);
 });
