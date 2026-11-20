@@ -64,7 +64,7 @@ Page(BasePage({
     this.activeTrendColor = null;
   },
   build() {
-    this.heading = label(layout.heading, MUTED, "LIBRE MONITOR");
+    this.heading = label(layout.heading, MUTED, "LIBRE MONITOR · SH ?");
     // Place the 10% larger reading and the smaller trend arrow on one row.
     // Right/left alignment keeps the arrow immediately next to 1-3 digits.
     this.value = label(layout.glucose, WHITE, "--", {
@@ -179,8 +179,12 @@ Page(BasePage({
     const snapshot = createWatchSnapshot(reading, this.thresholds);
     if (!snapshot) return;
     try {
-      // Publish the same verified glucose data for the read-only watch face.
-      publishWatchfaceSnapshot(snapshot);
+      // This publish operation is independent of the Mini App's local cache.
+      // Show a short status on the already existing debug heading, so a
+      // working glucose display cannot mask a failed watchface publication.
+      const shared = publishWatchfaceSnapshot(snapshot);
+      this.heading?.setProperty(hmUI.prop.TEXT,
+        "LIBRE MONITOR · SH " + (shared ? "OK" : "ERR"));
       if (!saveWatchSnapshot(watchStorage, snapshot)) {
         console.log("[LibreMonitor] WATCH_CACHE_VERIFY_FAILED");
         return;

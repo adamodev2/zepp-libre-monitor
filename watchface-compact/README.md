@@ -52,41 +52,42 @@ snapshot for glucose to update while the Mini App is closed. The watchface
 polls shared storage every 30 seconds while awake and on minute/resume
 events. Zepp OS may suspend updates while the screen is asleep.
 
-## Diagnostic regression build (v0.1.3)
+## Shared-storage investigation
 
-This is a **temporary, controlled A/B test** after the user confirmed that
-glucose was visible before the UI changes but disappeared after a face-only
-update. The code restores the exact original display geometry and data reader
-from initial commit `5c17d4f`. No changes to `Libre Monitor` are required.
+There are two distinct installations, both using the same Libre data source:
 
-When glucose is unavailable, the age label shows one of:
+- **Libre Monitor** (appId `1092841`) publishes watchface snapshots.
+- **Libre Glucose Face** and **Libre Compact Face** only read shared snapshots.
 
-- `NO SHARE`: the publisher's shared `snapshot` key is empty
-- `BAD JSON`: the shared record is not valid JSON
-- `BAD VER` / `BAD VALUE` / `BAD TIME`: payload schema is invalid
-- `FUTURE` / `EXPIRED`: shared timestamp is outside the accepted six-hour window
-- `READ ERR`: opening or reading cross-app shared storage threw an error
-- `BOOT 013`: the build rendered but did not finish its first refresh
+The original Mini App on `main` does not contain
+`publishWatchfaceSnapshot()`. The publisher was introduced by PR #10,
+but both the `main` and feature branch used to identify themselves as
+version `0.1.0` (`code: 1`). The Mini App on this branch is now
+**version 0.1.1 (`code: 2`)** to make an upgrade unambiguous.
 
-The face does not display secret data, and real glucose remains unchanged.
-**Report the exact status text** rather than assuming a synchronization issue.
-If the value displays again, the UI-geometry change is implicated and can
-be reintroduced in isolation. If it remains empty, the status will identify
-which part of shared storage failed.
+The existing Libre Monitor heading displays `SH OK` after the first
+successful shared-storage write, or `SH ERR` if writing/verification
+fails. `SH ?` means no new valid measurement was published in this
+session yet. This does not interfere with glucose shown by Libre Monitor.
 
-From the repository root:
+### Test order
 
-```bash
-git fetch origin
-git switch --detach origin/feat/compact-glucose-watchface
-cd watchface-compact
-npm install
-npm test
-npm run preview
-```
+1. From the **repository root**, run
+   `git fetch origin && git switch --detach origin/feat/compact-glucose-watchface`.
+2. From that root, run `npm install && npm run preview`. Scan the QR
+   to **update Libre Monitor**, not the face. Keep its appId `1092841`
+   and existing LibreLinkUp settings.
+3. Open Libre Monitor, press **Refresh**, and read `SH OK` / `SH ERR`
+   on its heading.
+4. Switch directly to either already installed watchface. **No watchface
+   reinstall is required for this test.**
+5. If `SH OK` but the compact diagnostic face still has no glucose,
+   report its code (`NO SHARE`, `READ ERR`, `BAD JSON`, `FUTURE`,
+   `EXPIRED`, etc.) to isolate cross-app access from publication.
 
-Install **only the Libre Compact Face** QR. Keep the current Libre Monitor
-installation unchanged for a meaningful comparison.
+The compact face v0.1.3 intentionally retains the original working layout
+and diagnostic label temporarily. Once cross-app data is verified, the
+visual design can be reintroduced independently.
 
 **Important:** `1092843` is an unverified/provisional watchface appId.
 Zepp may require a separate appId registered to your developer account;
