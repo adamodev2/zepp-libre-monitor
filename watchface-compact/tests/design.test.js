@@ -105,7 +105,7 @@ test("diagnostic watchface uses the original snapshot key and shows status only 
   assert.match(source, /describeSharedSnapshot\(full \|\| small, now\)/);
   assert.match(source, /"READ ERR"/);
   assert.match(source, /"BOOT 013"/);
-  assert.match(source, /getString\\(SHARED_READING_KEY, ""\\)/);
+  assert.match(source, /getString\(SHARED_READING_KEY, ""\)/);
   assert.match(source, /selectReliableGlucoseRaw/);
 });
 
