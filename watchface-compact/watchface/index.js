@@ -125,7 +125,7 @@ WatchFace({
     // A subtle full-width axis makes missing history visible without drawing fake values.
     rectangle(GRAPH.x, GRAPH.y + GRAPH.h - 1, GRAPH.w, 1, 0x29333b);
     this.rangeText = text(GRAPH.x, 312, 47, 26, 22, MUTED, "2h");
-    this.ageText = text(331, 312, 96, 26, 22, WHITE, "NO DATA", {
+    this.ageText = text(312, 312, 114, 26, 20, WHITE, "NO DATA", {
       align_h: hmUI.align.RIGHT,
     });
     heartIcon(123, 389);
@@ -197,13 +197,18 @@ WatchFace({
       // The face never contacts LibreLinkUp; the Mini App publishes both
       // history and a smaller independent measurement to shared storage.
       const shared = new TypedStorage(PRODUCER_APP_ID, SHARED_SCOPE);
-      const minimal = shared.getString(SHARED_READING_KEY, "");
-      const snapshot = shared.getString(SHARED_KEY, "");
+      let minimal = "", snapshot = "", readFailed = false;
+      // A larger history read can fail while the tiny reading is valid.
+      // Treat both keys independently so that failure never hides glucose.
+      try { minimal = shared.getString(SHARED_READING_KEY, ""); }
+      catch (_) { readFailed = true; }
+      try { snapshot = shared.getString(SHARED_KEY, ""); }
+      catch (_) { readFailed = true; }
       const selected = chooseSharedSnapshot(
         snapshot, minimal, this.lastRaw, this.clock.getTime()
       );
       if (selected) this.lastRaw = selected;
-      this.shareStatus = selected ? "OK" :
+      this.shareStatus = selected ? "OK" : readFailed ? "READ ERROR" :
         snapshot || minimal ? "BAD SHARE" : "NO SHARE";
     } catch (_) {
       // Preserve the last real reading, but expose read failure when empty.
