@@ -144,3 +144,9 @@ This lowers avoidable API load while preserving each reading's actual
 measurement timestamp, glucose age and stale-data warnings. Network
 savings depend on app usage and BG scheduling; no official Abbott rate
 limit is assumed.
+
+## Uniform AMOLED-black background (v0.1.4)
+
+The face background, glucose panel, graph fill and heart-rate/battery pills
+all use pure black (`#000000`). This is a visual-only change; watchface
+glucose sharing, timing, widgets and the Mini App are unchanged.
