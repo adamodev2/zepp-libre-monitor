@@ -5,7 +5,8 @@ import { TypedStorage } from "@zos/share-storage";
 import { getScene, SCENE_AOD } from "@zos/app";
 import { isHeartRateDisplayable } from "../lib/heart-confidence";
 import {
-  parseGlucoseSnapshot, readingColor, chartCoordinates, linePixels,
+  parseGlucoseSnapshot, chooseSharedSnapshot,
+  readingColor, chartCoordinates, linePixels,
 } from "../lib/model";
 import {
   FACE_SIZE, CHART_MINUTES, PANEL, GRAPH, HEART_PILL, BATTERY_PILL,
@@ -16,6 +17,7 @@ import {
 const PRODUCER_APP_ID = 1092841;
 const SHARED_SCOPE = "libre-glucose-face-v1";
 const SHARED_KEY = "snapshot";
+const SHARED_READING_KEY = "reading";
 const REFRESH_INTERVAL_MS = 30_000;
 const WHITE = 0xffffff;
 const MUTED = 0x9ba5b3;
@@ -88,6 +90,7 @@ WatchFace({
     try { this.screen = new Screen(); } catch (_) {}
     this.destroyed = false;
     this.lastRaw = "";
+    this.shareStatus = "NO SHARE";
     this.chartWidgets = [];
     this.trendWidgets = [];
     this.chartSignature = "";
@@ -191,19 +194,20 @@ WatchFace({
 
   getGlucose() {
     try {
-      // Only the Mini App (1092841) owns the network connection and publisher.
-      const raw = new TypedStorage(PRODUCER_APP_ID, SHARED_SCOPE)
-        .getString(SHARED_KEY, "");
-      if (raw) {
-        const now = this.clock.getTime();
-        const candidate = parseGlucoseSnapshot(raw, now);
-        const previous = parseGlucoseSnapshot(this.lastRaw, now);
-        if (candidate && (!previous || candidate.timestamp >= previous.timestamp)) {
-          this.lastRaw = raw;
-        }
-      }
+      // The face never contacts LibreLinkUp; the Mini App publishes both
+      // history and a smaller independent measurement to shared storage.
+      const shared = new TypedStorage(PRODUCER_APP_ID, SHARED_SCOPE);
+      const minimal = shared.getString(SHARED_READING_KEY, "");
+      const snapshot = shared.getString(SHARED_KEY, "");
+      const selected = chooseSharedSnapshot(
+        snapshot, minimal, this.lastRaw, this.clock.getTime()
+      );
+      if (selected) this.lastRaw = selected;
+      this.shareStatus = selected ? "OK" :
+        snapshot || minimal ? "BAD SHARE" : "NO SHARE";
     } catch (_) {
-      // Keep the last real reading, never synthesize a fresh one.
+      // Preserve the last real reading, but expose read failure when empty.
+      this.shareStatus = "READ ERROR";
     }
     return parseGlucoseSnapshot(this.lastRaw, this.clock.getTime());
   },
@@ -380,7 +384,8 @@ WatchFace({
     this.aodTimeText.setProperty(hmUI.prop.TEXT, formatFaceTime(now));
     this.aodGlucoseText.setProperty(hmUI.prop.TEXT, reading ? String(reading.value) : "--");
     this.aodGlucoseText.setProperty(hmUI.prop.COLOR, color);
-    this.aodAgeText.setProperty(hmUI.prop.TEXT, glucoseAgeLabel(reading));
+    this.aodAgeText.setProperty(hmUI.prop.TEXT,
+      reading ? glucoseAgeLabel(reading) : this.shareStatus);
 
     if (getScene() === SCENE_AOD) {
       hmUI.redraw();
@@ -390,7 +395,8 @@ WatchFace({
     this.timeText.setProperty(hmUI.prop.TEXT, formatFaceTime(now));
     this.glucoseText.setProperty(hmUI.prop.TEXT, reading ? String(reading.value) : "--");
     this.glucoseText.setProperty(hmUI.prop.COLOR, color);
-    this.ageText.setProperty(hmUI.prop.TEXT, glucoseAgeLabel(reading));
+    this.ageText.setProperty(hmUI.prop.TEXT,
+      reading ? glucoseAgeLabel(reading) : this.shareStatus);
     this.drawTrend(reading?.trend || 0, color);
     this.drawChart(reading, now, color);
     this.renderHeart();
