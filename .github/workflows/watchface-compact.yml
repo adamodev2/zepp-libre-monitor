@@ -1,0 +1,31 @@
+name: Compact glucose watchface
+
+on:
+  push:
+    branches:
+      - feat/compact-glucose-watchface
+    paths:
+      - "watchface-compact/**"
+      - ".github/workflows/watchface-compact.yml"
+  pull_request:
+    paths:
+      - "watchface-compact/**"
+      - ".github/workflows/watchface-compact.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: watchface-compact
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate and build compact watchface
+        run: |
+          npm install --no-audit --no-fund
+          npm run check
+          npm test
+          npm run build
